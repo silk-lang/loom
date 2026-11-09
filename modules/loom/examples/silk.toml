@@ -1,0 +1,10 @@
+[package]
+name = "ui-app-examples"
+version = "0.1.0"
+silk-version = "0.1.0-dev.63+657e3c900f65"
+kind = "library"
+exports = ["lib", "counter", "todo", "look"]
+
+[dependencies]
+ui_app = { path = "..", package = "ui-app" }
+ui_tree = { path = "../../tree", package = "ui-tree" }
