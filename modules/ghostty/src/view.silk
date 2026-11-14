@@ -28,7 +28,8 @@ import ghostty_vt.terminal {
   STRIKETHROUGH,
   UNDERLINE_MASK
 }
-import ui_app.lib { Document, Node, Reply, Event, EventKind, Cursor as PointerCursor, Heap }
+import ui_app.lib { Document, Node, Reply, Event, EventKind, Cursor as PointerCursor, Heap, Live }
+import speech { Speech }
 import ui_app.font { Font }
 import ui_app.css
 import ui_app.css { px, Position, Overflow, WhiteSpace, FontStyle, Keyword, BorderStyle, BoxSizing }
@@ -49,6 +50,7 @@ import silk.num.u16
 import silk.num.u32
 import silk.num.u64
 import silk.num.u8
+import silk.num.usize
 import silk.num.i32
 import silk.text.string { String }
 
@@ -148,6 +150,8 @@ pub struct TerminalView {
   wheel: f32,
   title: String,
   outbox: List<Outgoing>,
+  /// The output a screen reader is given to read (see `speech`).
+  speech: Speech,
   /// The last terminal error code, 0 when none.
   pub error: i32,
 }
@@ -214,6 +218,7 @@ impl TerminalView {
       wheel: 0.0,
       title: String.make(),
       outbox: List<Outgoing>.make(),
+      speech: Speech.make(),
       error: 0,
     }
   }
@@ -224,6 +229,10 @@ impl TerminalView {
     ! OutOfMemoryError
     ? &mut Allocator {
     self.terminal.write(bytes)
+    // Full-screen programs redraw the screen; reading their output would be noise.
+    if !self.terminal.alternateScreen() {
+      run self.speech.hear(bytes)
+    }
     run self.refresh()
   }
 
@@ -490,10 +499,12 @@ impl TerminalView {
         }
       }
       TerminalMessage.Key { key, modifiers } => {
+        self.speech.clear()
         run self.toLive()
         run self.key(key.view(), modifiers)
       }
       TerminalMessage.Typed { text } => {
+        self.speech.clear()
         self.epoch = self.epoch + 1
         run self.toLive()
         run self.send(String.utf8Bytes(text.view()))
@@ -611,6 +622,7 @@ impl TerminalView {
     }
     heap.alloc(children.append(self.cursorNode(h)))
     heap.alloc(children.append(self.scrollbarNode(h)))
+    heap.alloc(children.append(self.spoken(h)))
     heap.alloc(children.append(h.keyed(self.epoch, self.input(h))))
     let dragging = self.pressing != 0
     let listensToMoves = self.pressing != 0 || self.terminal.tracksMouse()
@@ -971,6 +983,34 @@ impl TerminalView {
         ),
       ],
       &[],
+    )
+  }
+
+  /// A polite live region nothing shows, holding the output since the user's last input, a
+  /// node per write, so a screen reader reads each write once as it arrives.
+  fn spoken(self: &Self, h: &Document<TerminalMessage>) -> Node {
+    let mut heap = Heap.make()
+    let mut lines = List<Node>.make()
+    let chunks = self.speech.chunks()
+    let mut i: usize = 0
+    while i < chunks.length {
+      heap.alloc(lines.append(h.keyed(self.speech.first() + usize.toU64(i), h.text(chunks[i].view()))))
+      i = i + 1
+    }
+    return h.box(
+      &[
+        h.style(
+          &[
+            css.position(Position.Absolute),
+            css.width(px(1.0)),
+            css.height(px(1.0)),
+            css.overflow(Overflow.Hidden),
+            css.pointerEvents(false),
+          ],
+        ),
+        h.live(Live.Polite),
+      ],
+      lines.asSlice(),
     )
   }
 

@@ -4,7 +4,7 @@ description = "A terminal component for ui-app programs, rendered on the UI tree
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 kind = "library"
-exports = ["view"]
+exports = ["view", "speech"]
 
 [dependencies]
 ghostty_vt = { path = "vt", package = "ghostty-vt" }

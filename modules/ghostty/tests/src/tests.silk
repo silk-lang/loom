@@ -1,5 +1,6 @@
 //! The terminal component on a real tree, driven through the tree's dispatch path.
 import ui_ghostty.view { TerminalView, TerminalMessage, Options, Outgoing }
+import ui_ghostty.speech { Speech }
 import ghostty_vt.terminal { GhosttyError }
 import ui_app.font { Font }
 import ui_app.lib { Document, NoCommand, NoOutput, Node, Program, Update }
@@ -278,4 +279,33 @@ test effect fn wheelScrollsTheScrollback() -> ()
   ! AssertionError<'static> | TreeError | OutOfMemoryError {
   let mut allocator = Allocator.systemAllocatorProvider()
   run scrollBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+effect fn speechBody() -> () ! AssertionError<'static> | OutOfMemoryError ? &mut Allocator {
+  let mut speech = Speech.make()
+  run speech.hear(b"\x1b[1;32mok\x1b[0m done\r\n")
+  run speech.hear(b"\x1b]0;title\x07")
+  run speech.hear(b"\x1b]8;;http://x\x1b\\link\x1b]8;;\x1b\\")
+  run speech.hear(b"abc\x08\x08x")
+  run speech.hear(b"\x1b[3")
+  run speech.hear(b"1mred")
+  let chunks = speech.chunks()
+  run Testing.expect(chunks.length == 4, "a chunk per write with text; a title alone says nothing")
+  run Testing.expect(chunks[0].view() == "ok done", "escape sequences go, line ends become spaces, ends trimmed")
+  run Testing.expect(chunks[1].view() == "link", "OSC strings ended by ST go")
+  run Testing.expect(chunks[2].view() == "ax", "backspaces take back echoed characters")
+  run Testing.expect(chunks[3].view() == "red", "a sequence split across writes")
+  speech.clear()
+  run Testing.expect(speech.chunks().length == 0 && speech.first() == 4, "input clears, and keys keep counting")
+  let mut i = 0
+  while i < 40 {
+    run speech.hear(b"line")
+    i = i + 1
+  }
+  run Testing.expect(speech.chunks().length == 32, "a flood joins the last chunk")
+}
+
+test effect fn speechHearsText() -> () ! AssertionError<'static> | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run speechBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
