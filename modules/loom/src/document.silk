@@ -15,13 +15,13 @@ import ui { Ui, Span, PassSizes, LazyHints }
 // What a view names next to the builder.
 pub import ui { Reply, DefaultAction }
 pub import ui_protocol.grid { Grid }
-pub import ui_protocol.mutation { Role, Cursor, CanvasCommand }
+pub import ui_protocol.mutation { Role, Cursor, CanvasCommand, TriState, Live, Orientation }
 pub import ui_protocol.options { AnchorOptions }
 pub import ui_protocol.record { Event, EventKind }
 import ui_protocol.css
 import ui_protocol.css { Declaration, Keyword, px }
 import ui_protocol.event { preventFlags }
-import ui_protocol.mutation { NodeKind, StyleState, FlexDirection, TriState, Live, Orientation, Position, Overflow }
+import ui_protocol.mutation { NodeKind, StyleState, FlexDirection, Position, Overflow }
 import aria { AriaField }
 import silk.collections.list { List }
 import silk.collections.slice { Slice }
