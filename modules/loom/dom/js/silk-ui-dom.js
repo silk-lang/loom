@@ -111,6 +111,77 @@ class IdTable {
   }
 }
 
+// Composite widgets whose items arrow keys move focus among, as ui-tree does (the WAI-ARIA
+// Authoring Practices): the item roles of each, or null for any focusable control.
+const COMPOSITES = {
+  tablist: ["tab"],
+  menu: ["menuitem", "menuitemcheckbox", "menuitemradio"],
+  menubar: ["menuitem", "menuitemcheckbox", "menuitemradio"],
+  listbox: ["option"],
+  radiogroup: ["radio"],
+  tree: ["treeitem"],
+  toolbar: null,
+};
+const SIDEWAYS = new Set(["tablist", "toolbar", "menubar"]);
+const STOPS = new Set(["listbox", "tree"]);
+const TYPEAHEAD = new Set(["listbox", "menu", "menubar", "tree"]);
+
+function focusableNode(node) {
+  return node.tabIndex >= -1 && node.hasAttribute("tabindex") && !node.closest("[inert]") && node.getAttribute("aria-disabled") !== "true" && node.getClientRects().length > 0;
+}
+
+// Moves focus from item `target` of a composite widget on an arrow key, Home, End or a
+// letter. Returns whether it did.
+function rove(target, key) {
+  const role = target.getAttribute("role");
+  let container = target.parentElement;
+  while (container && !(container.getAttribute("role") in COMPOSITES)) container = container.parentElement;
+  if (!container) return false;
+  const kind = container.getAttribute("role");
+  const roles = COMPOSITES[kind];
+  if (roles && !roles.includes(role)) return false;
+  const orientation = container.getAttribute("aria-orientation");
+  const down = orientation ? orientation === "vertical" : !SIDEWAYS.has(kind);
+  const next = key === (down ? "ArrowDown" : "ArrowRight");
+  const previous = key === (down ? "ArrowUp" : "ArrowLeft");
+  const typed = key.length === 1 && key > " " && TYPEAHEAD.has(kind);
+  if (!next && !previous && key !== "Home" && key !== "End" && !typed) return false;
+  const items = [];
+  const walk = (node) => {
+    for (const child of node.children) {
+      const childRole = child.getAttribute("role");
+      const item = roles ? roles.includes(childRole) : child.hasAttribute("tabindex");
+      if (item && focusableNode(child)) {
+        items.push(child);
+        if (!roles) continue;
+      }
+      if (childRole in COMPOSITES && !(kind === "tree" && childRole === "tree")) continue;
+      walk(child);
+    }
+  };
+  walk(container);
+  const index = items.indexOf(target);
+  if (index < 0) return false;
+  const count = items.length;
+  const wraps = !STOPS.has(kind);
+  let to = null;
+  if (key === "Home") to = items[0];
+  else if (key === "End") to = items[count - 1];
+  else if (next) to = index + 1 < count ? items[index + 1] : wraps ? items[0] : target;
+  else if (previous) to = index > 0 ? items[index - 1] : wraps ? items[count - 1] : target;
+  else {
+    const letter = key.toLowerCase();
+    for (let step = 1; step <= count && !to; step++) {
+      const item = items[(index + step) % count];
+      const name = (item.getAttribute("aria-label") || item.textContent || "").trimStart().toLowerCase();
+      if (name.startsWith(letter)) to = item;
+    }
+    if (!to) return true;
+  }
+  if (to !== target) to.focus();
+  return true;
+}
+
 // ARIA attributes whose value is a list of node numbers, written as element ids.
 const RELATIONS = new Set(["aria-labelledby", "aria-describedby", "aria-controls", "aria-activedescendant"]);
 
@@ -1582,6 +1653,10 @@ class Page {
       }
       // A focused node that is not a native control is pressed with Enter and Space.
       const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+      if (inside && plain && target === document.activeElement && rove(target, event.key)) {
+        event.preventDefault();
+        return;
+      }
       const native = /^(INPUT|TEXTAREA|BUTTON|SELECT|A)$/.test(target.tagName);
       if (inside && plain && !event.repeat && !native && target.hasAttribute("tabindex")) {
         if (event.key === "Enter" || event.key === " ") {
