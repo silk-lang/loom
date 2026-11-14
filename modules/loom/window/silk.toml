@@ -13,7 +13,7 @@ ui_tree_window = { path = "../../tree/window", package = "ui-tree-window" }
 ui_inspect_server = { path = "../../inspect/server", package = "ui-inspect-server" }
 ui_app_inspect = { path = "../inspect", package = "ui-app-inspect" }
 ui_devtools = { path = "../../inspect/devtools", package = "ui-inspect-devtools" }
-font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "42edcde61d4bc4915997ab013a3cc7fe3ad7118f", path = "modules/collection", package = "font-collection" }
+font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "9c2c5e579164b7f12bfa769cc5d08566ec140856", path = "modules/collection", package = "font-collection" }
 atlas = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7e3770cb41beaf709272548863f5b020f476765f", path = "modules/atlas", package = "graphics-atlas" }
 vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7e3770cb41beaf709272548863f5b020f476765f", path = "modules/vector", package = "graphics-vector" }
 ui_scene = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7e3770cb41beaf709272548863f5b020f476765f", path = "modules/ui_scene", package = "graphics-ui-scene" }
