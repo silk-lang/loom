@@ -101,7 +101,7 @@ impl Program<Flip, NoCommand> for Toggle {
         h.live(Live.Polite),
         h.description(if model.on { "On now" } else { "" }),
       ],
-      &[h.text("Bold")],
+      &[h.text("Bold"), h.liveRegion(if model.on { "Bold on" } else { "" }, Live.Assertive)],
     )
   }
 }
@@ -123,6 +123,8 @@ effect fn builderBody() -> ()
   let after = Bytes.asSlice(&second)
   run Testing.expect(has(after, "aria-pressed=\"true\"") && has(after, "aria-level=\"3\""), "changes are diffed")
   run Testing.expect(has(after, "aria-description=\"On now\""), "text attributes too")
+  run Testing.expect(has(before, "aria-live=\"assertive\"") && !has(before, "Bold on"), "a live region is there, empty, from the start")
+  run Testing.expect(has(after, "Bold on"), "and says its message when it changes")
 }
 
 test effect fn documentBuildersSetAriaAttributes() -> ()
