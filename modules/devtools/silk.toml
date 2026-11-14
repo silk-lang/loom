@@ -12,4 +12,4 @@ ui_tree = { path = "../../tree", package = "ui-tree" }
 ui_inspect = { path = "..", package = "ui-inspect" }
 ui_inspect_server = { path = "../server", package = "ui-inspect-server" }
 ui_tree_window = { path = "../../tree/window", package = "ui-tree-window" }
-properties = { git = "https://github.com/silk-lang/lib-css.git", rev = "4a572e9c106d0ffd014d361bda429a4dac9176e3", path = "modules/properties", package = "css-properties" }
+properties = { git = "https://github.com/silk-lang/lib-css.git", rev = "2abb0f43d03c40221a8082a8071cd700a5cc7161", path = "modules/properties", package = "css-properties" }
