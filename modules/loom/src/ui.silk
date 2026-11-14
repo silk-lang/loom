@@ -2506,6 +2506,9 @@ impl<M> Ui<M> {
   /// A dialog that keeps the rest of the window out of reach (`aria-modal`).
   pub fn modal(self: &mut Self, value: bool) -> () { self.aria(AriaField.Modal, flagValue(value)) }
 
+  /// Puts the open node and its subtree out of reach, as HTML `inert`.
+  pub fn inert(self: &mut Self, value: bool) -> () { self.aria(AriaField.Inert, flagValue(value)) }
+
   /// Sets a flag or number attribute of the open node (see [`AriaValues.set`]).
   pub fn aria(self: &mut Self, field: AriaField, value: i32) -> () {
     if !self.dispatching {

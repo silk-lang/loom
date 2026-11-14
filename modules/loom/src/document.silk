@@ -888,6 +888,10 @@ impl<M> Document<M> {
   /// A dialog that keeps the rest of the window out of reach (`aria-modal`).
   pub fn modal(self: &Self, value: bool) -> Attr { return self.flag(AriaField.Modal, value) }
 
+  /// Puts the node and its subtree out of reach, as HTML `inert`: no focus, no pointer input,
+  /// unseen by assistive technology. Give it to what a modal dialog covers.
+  pub fn inert(self: &Self, value: bool) -> Attr { return self.flag(AriaField.Inert, value) }
+
   fn flag(self: &Self, field: AriaField, value: bool) -> Attr {
     return self.op(Op.Aria { field: field, value: if value { 1 } else { 0 } })
   }

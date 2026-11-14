@@ -25,6 +25,7 @@ pub enum AriaField {
   PosInSet,
   SetSize,
   Modal,
+  Inert,
 }
 
 const HIDDEN: u32 = 1
@@ -35,6 +36,7 @@ const REQUIRED: u32 = 16
 const INVALID: u32 = 32
 const MULTI_SELECTABLE: u32 = 64
 const MODAL: u32 = 128
+const INERT: u32 = 256
 
 /// The flags, numbers and enum values of a node's attributes. Text attributes are kept as
 /// spans by the owner, beside this.
@@ -85,6 +87,7 @@ impl AriaValues {
       AriaField.Invalid => { self.flag(INVALID, value) }
       AriaField.MultiSelectable => { self.flag(MULTI_SELECTABLE, value) }
       AriaField.Modal => { self.flag(MODAL, value) }
+      AriaField.Inert => { self.flag(INERT, value) }
       _ => {}
     }
   }
@@ -116,6 +119,7 @@ impl AriaValues {
     if (changed & INVALID) != 0 { run set(&mut out, id, Attribute.Invalid { value: self.has(INVALID) }) }
     if (changed & MULTI_SELECTABLE) != 0 { run set(&mut out, id, Attribute.MultiSelectable { value: self.has(MULTI_SELECTABLE) }) }
     if (changed & MODAL) != 0 { run set(&mut out, id, Attribute.Modal { value: self.has(MODAL) }) }
+    if (changed & INERT) != 0 { run set(&mut out, id, Attribute.Inert { value: self.has(INERT) }) }
   }
 }
 
