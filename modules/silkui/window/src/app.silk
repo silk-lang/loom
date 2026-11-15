@@ -12,8 +12,9 @@
 import loom.app { NoCommand }
 import loom.program { Program, CommandSet }
 import loom.shell { Shell }
-import loom_window.program { Launched, Window, StyleAssets, launch, show, systemFonts, failed }
+import loom_window.program { Launched, Window, StyleAssets, SheetWatch, launch, show, systemFonts, failed }
 import silk.core.effect { Effect }
+import silk.system.filesystem { FileError }
 import silk.core.option { Option }
 import silk.core.ownership { Copy }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
@@ -29,39 +30,40 @@ pub struct Settings {
 
 impl Copy for Settings {}
 
-effect fn window(settings: Settings, sheets: StyleAssets) -> Window ! OutOfMemoryError ? &mut Allocator {
+effect fn window(settings: Settings, sheets: StyleAssets, updates: SheetWatch) -> Window ! OutOfMemoryError ? &mut Allocator {
   let mut window = run Window.make(settings.title, settings.width, settings.height)
   window.withStyleSheets(move sheets)
+  window.withStyleSheetUpdates(move updates)
   if !settings.inspect { window.uninspected() }
   return move window
 }
 
-effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets) -> i32
+effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
   let fonts = run systemFonts()
-  return run show<P, M, NoCommand, never>(run window(settings, move sheets), &fonts, move platform)
+  return run show<P, M, NoCommand, never>(run window(settings, move sheets, move updates), &fonts, move platform)
 }
 
-effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets) -> i32
+effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
-  let window = run window(settings, move sheets)
+  let window = run window(settings, move sheets, move updates)
   let mut shell = window.shell()
   let fonts = run systemFonts()
   return run show<P, M, C, &mut Shell | &mut Allocator>(move window, &fonts, move platform)
     |> Effect.provideMut<Shell>(&mut shell)
 }
 
-fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets) -> i32 {
+fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(opened<P, M>(settings, move platform, move sheets), failed)
+  return run Effect.catchAll(opened<P, M>(settings, move platform, move sheets, move updates), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets) -> i32 {
+fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform, move sheets), failed)
+  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform, move sheets, move updates), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
@@ -72,17 +74,22 @@ pub fn main<P: Program<M, NoCommand>, M>(settings: Settings) -> i32 {
 
 /// Starts with build-compiled application sheets, in adoption order.
 pub fn mainWithSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]]) -> i32 {
+  return mainWithSheetUpdates<P, M>(settings, sources, "")
+}
+
+pub fn mainWithSheetUpdates<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(launchSheets<P, M>(settings, sources), failed)
+  return run Effect.catchAll(launchSheets<P, M>(settings, sources, updatePath), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-effect fn launchSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]]) -> i32
-  ! OutOfMemoryError ? &mut Allocator {
+effect fn launchSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32
+  ! FileError | OutOfMemoryError ? &mut Allocator {
   let sheets = run StyleAssets.from(sources)
+  let updates = run SheetWatch.from(updatePath)
   // Copy borrowed source bytes before transferring them to the app thread.
   return launch(fn(platform: Option<Launched>) -> i32 {
-    return app<P, M>(settings, move platform, move sheets)
+    return app<P, M>(settings, move platform, move sheets, move updates)
   })
 }
 
@@ -94,16 +101,23 @@ pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allo
 pub fn withCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
   settings: Settings, sources: &[&[u8]],
 ) -> i32 {
+  return withCommandsAndSheetUpdates<P, M, C>(settings, sources, "")
+}
+
+pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]], updatePath: string,
+) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(launchCommandsAndSheets<P, M, C>(settings, sources), failed)
+  return run Effect.catchAll(launchCommandsAndSheets<P, M, C>(settings, sources, updatePath), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
 effect fn launchCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
-  settings: Settings, sources: &[&[u8]],
-) -> i32 ! OutOfMemoryError ? &mut Allocator {
+  settings: Settings, sources: &[&[u8]], updatePath: string,
+) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
   let sheets = run StyleAssets.from(sources)
+  let updates = run SheetWatch.from(updatePath)
   return launch(fn(platform: Option<Launched>) -> i32 {
-    return appWithCommands<P, M, C>(settings, move platform, move sheets)
+    return appWithCommands<P, M, C>(settings, move platform, move sheets, move updates)
   })
 }

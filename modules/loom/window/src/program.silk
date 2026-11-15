@@ -31,7 +31,7 @@
 //!
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
-import lib { WindowContent, runWindowHostedWithSheets, Loader }
+import lib { WindowContent, runWindowHostedWithSheetUpdates, Loader }
 import loom.app { App }
 import loom.program { Program, CommandSet, Hosted, Run, make }
 import loom.runtime { Runtime }
@@ -130,6 +130,7 @@ fn wake(desk: &Arc<Mutex<Desk>>) -> () {
 
 /// The window a program opens: its title and size, its fonts, and its [`Shell`].
 pub import ui_tree.style_assets { StyleAssets }
+pub import ui_tree_window.style_watch { SheetWatch }
 
 pub struct Window {
   title: string<'static>,
@@ -137,6 +138,7 @@ pub struct Window {
   height: f64,
   resources: Batch,
   stylesheets: StyleAssets,
+  stylesheetUpdates: SheetWatch,
   files: List<CarriedFile>,
   inspect: bool,
   check: bool,
@@ -166,6 +168,7 @@ impl Window {
       height: height,
       resources: Batch.make(),
       stylesheets: StyleAssets.make(),
+      stylesheetUpdates: SheetWatch.make(),
       files: List<CarriedFile>.make(),
       inspect: true,
       check: false,
@@ -179,6 +182,11 @@ impl Window {
   /// Installs precompiled application sheets in their supplied order before layout.
   pub fn withStyleSheets(self: &mut Self, stylesheets: StyleAssets) -> () {
     self.stylesheets = move stylesheets
+  }
+
+  /// Enables compiled stylesheet updates prepared by the development task.
+  pub fn withStyleSheetUpdates(self: &mut Self, updates: SheetWatch) -> () {
+    self.stylesheetUpdates = move updates
   }
 
   pub effect fn stylesheet(self: &mut Self, bytes: &[u8]) -> ()
@@ -733,14 +741,14 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
   }
-  let code = run runWindowHostedWithSheets<
+  let code = run runWindowHostedWithSheetUpdates<
     ShellContent<Hosted<P>, M, Run<C>>,
     Hosted<P>,
     M,
     Run<C>,
     OutOfMemoryError,
     R
-  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content, Intrinsic.replace(window.stylesheets, StyleAssets.make()))
+  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content, Intrinsic.replace(window.stylesheets, StyleAssets.make()), Intrinsic.replace(window.stylesheetUpdates, SheetWatch.make()))
 
   // The platform ends with the window.
   let mut guard = window.desk.get().lock()
