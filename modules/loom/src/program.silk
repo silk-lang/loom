@@ -80,7 +80,7 @@ pub interface CommandSet<M, ? R> {
 impl<M> CommandSet<M ? never> for NoCommand {
   effect fn execute(self: Self) -> M
     ! OutOfMemoryError {
-    return Intrinsic.trap("ui-app: NoCommand is never executed")
+    return Intrinsic.trap("loom: NoCommand is never executed")
   }
 }
 

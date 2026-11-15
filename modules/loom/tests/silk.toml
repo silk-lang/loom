@@ -1,13 +1,14 @@
 [package]
-name = "ui-app-tests"
+name = "loom-tests"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 
 [dependencies]
-ui_app = { path = "..", package = "ui-app" }
-ui_app_dom = { path = "../dom", package = "ui-app-dom" }
+loom = { path = "..", package = "loom" }
+loom_tree = { path = "../tree", package = "loom-tree" }
+loom_dom = { path = "../dom", package = "loom-dom" }
 ui_protocol = { path = "../../protocol", package = "ui-protocol" }
-ui_app_examples = { path = "../examples", package = "ui-app-examples" }
+loom_examples = { path = "../examples", package = "loom-examples" }
 ui_tree = { path = "../../tree", package = "ui-tree" }
 ui_fixtures = { path = "../../tree/fixtures", package = "ui-tree-fixtures" }
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "9c2c5e579164b7f12bfa769cc5d08566ec140856", path = "modules/collection", package = "font-collection" }

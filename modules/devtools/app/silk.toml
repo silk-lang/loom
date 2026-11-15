@@ -5,8 +5,8 @@ silk-version = "0.1.0-dev.74+205aea3f5b2e"
 
 [dependencies]
 ui_devtools = { path = "..", package = "ui-inspect-devtools" }
-ui_app = { path = "../../../app", package = "ui-app" }
-ui_app_window = { path = "../../../app/window", package = "ui-app-window" }
+loom = { path = "../../../loom", package = "loom" }
+loom_window = { path = "../../../loom/window", package = "loom-window" }
 ui_tree_window = { path = "../../../tree/window", package = "ui-tree-window" }
 ui_inspect_server = { path = "../../server", package = "ui-inspect-server" }
 ui_tree = { path = "../../../tree", package = "ui-tree" }

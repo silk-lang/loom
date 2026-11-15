@@ -13,7 +13,7 @@ import ui_tree.mutation {
   TextAlign,
   CanvasCommand
 }
-import ui_app.ui { Ui }
+import loom.ui { Ui }
 import silk.color.rgba { Rgba }
 import silk.core.ownership { Copy }
 import silk.mem.allocator { Allocator, OutOfMemoryError }

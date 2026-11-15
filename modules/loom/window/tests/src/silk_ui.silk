@@ -1,12 +1,12 @@
-//! The `silk-ui` inspector extension (ui-app-inspect) as the window host serves it: a counter
+//! The `silk-ui` inspector extension (loom-inspect) as the window host serves it: a counter
 //! program's messages and model, over a session in the same process (`Inspector.openLocal`),
 //! and nothing of the program left in the inspector itself.
-import ui_app_inspect.lib { SilkUi, ID }
-import ui_app.app { NoCommand }
-import ui_app.harness { click }
-import ui_app.program as program
-import ui_app_examples.counter { Counter, Message as CounterMessage }
-import ui_app_examples.look { SANS }
+import loom_inspect.lib { SilkUi, ID }
+import loom.app { NoCommand }
+import loom_tree.harness { click }
+import loom.program as program
+import loom_examples.counter { Counter, Message as CounterMessage }
+import loom_examples.look { SANS }
 import ui_inspect_server.lib { Inspector, Channel, MemoryChannel }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput }

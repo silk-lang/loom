@@ -1,9 +1,9 @@
 //! Fonts a program declares: the families its views name, and the faces it loads by URL.
-import ui_app.app { App, Context, NoCommand }
-import ui_app.css
-import ui_app.font { Font, Face, Fonts }
-import ui_app.runtime { Runtime }
-import ui_app.ui { Ui }
+import loom.app { App, Context, NoCommand }
+import loom.css
+import loom.font { Font, Face, Fonts }
+import loom.runtime { Runtime }
+import loom.ui { Ui }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, Mutation }
 import ui_fixtures.fixtures as fixtures
 import silk.core.effect { Effect }

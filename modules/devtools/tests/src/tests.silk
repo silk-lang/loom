@@ -24,8 +24,8 @@ import ui_devtools.lib {
   columnsFor,
   STACKED_BELOW
 }
-import ui_app.runtime { Runtime, drain, pump }
-import ui_app.harness { click, hover, moveTo, press, snapshot, typeText }
+import loom.runtime { Runtime, drain, pump }
+import loom_tree.harness { click, hover, moveTo, press, snapshot, typeText }
 import ui_inspect.query { Query, queryFirst }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput, Role }

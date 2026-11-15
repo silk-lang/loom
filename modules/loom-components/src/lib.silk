@@ -1,4 +1,4 @@
-//! Components for ui-app views: buttons, checkboxes and switches, sliders, text fields, lists
+//! Components for loom views: buttons, checkboxes and switches, sliders, text fields, lists
 //! and virtual lists, scroll views, tabs, menus and selects, dialogs, popovers and tooltips.
 //!
 //! Every component is a function generic over the app's message type `M`, so it costs what the

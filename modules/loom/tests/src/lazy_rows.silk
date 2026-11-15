@@ -1,9 +1,9 @@
 //! `h.lazy`: keyed rows the last render made with the same hash are copied, not described
 //! again, and stay right when rows change, move and go.
-import ui_app.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update, textKey }
-import ui_app.program as program
-import ui_app.backend { TreeError }
-import ui_app_dom.html { Html }
+import loom.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update, textKey }
+import loom.program as program
+import loom.backend { TreeError }
+import loom_dom.html { Html }
 import silk.collections.bytes { Bytes }
 import silk.collections.list { List }
 import silk.core.effect { Effect }

@@ -1,11 +1,11 @@
 //! Integration coverage of layout capabilities through the app builder and diff.
-import ui_app.heap { allocate }
+import loom.heap { allocate }
 import ui_tree.css
 import ui_tree.css { px, number, calc }
-import ui_app.app { App, Context, NoCommand }
-import ui_app.runtime { Runtime, pump }
-import ui_app.ui { Ui }
-import ui_app.harness { locate }
+import loom.app { App, Context, NoCommand }
+import loom.runtime { Runtime, pump }
+import loom.ui { Ui }
+import loom_tree.harness { locate }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, NodeInfo }
 import ui_tree.mutation { Position }
 import ui_tree.grid { Grid }

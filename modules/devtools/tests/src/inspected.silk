@@ -5,14 +5,14 @@
 //! the session is told what changed. The app is a silk-ui program, so the `silk-ui` extension is
 //! registered and served after each line, as the window host does.
 import ui_devtools.link { Link, Requests }
-import ui_app_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
-import ui_app_examples.look { SANS }
-import ui_app.runtime { Runtime, pump }
+import loom_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
+import loom_examples.look { SANS }
+import loom.runtime { Runtime, pump }
 import ui_inspect_server.protocol { Protocol, Outcome }
 import ui_inspect_server.channel { Channel, MemoryChannel, MemoryPair }
 import ui_inspect_server.session { Session }
 import ui_inspect_server.extension { Outgoing }
-import ui_app_inspect.lib { SilkUi, ProgramStep, ID as SILK_UI }
+import loom_inspect.lib { SilkUi, ProgramStep, ID as SILK_UI }
 import notes { Notes, ID as NOTES }
 import silk.collections.list { List }
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput, CpuSnapshot }

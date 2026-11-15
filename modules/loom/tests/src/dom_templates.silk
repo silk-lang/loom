@@ -1,13 +1,13 @@
-//! `Dom` writes a subtree like one made before as a copy of it (`ui_app_dom.templates`). The
+//! `Dom` writes a subtree like one made before as a copy of it (`loom_dom.templates`). The
 //! page the copies give must be the page the single mutations give: a small stand-in for
 //! `silk-ui-dom.js` applies the batches both ways and the two are compared after every step.
-import ui_app.css
-import ui_app.css { Keyword }
-import ui_app.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update, textKey }
-import ui_app.program as program
-import ui_app.backend { Backend, Measured, TreeError }
-import ui_app_dom.dom { Dom }
-import ui_app_dom.wire { readByte, readWord }
+import loom.css
+import loom.css { Keyword }
+import loom.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update, textKey }
+import loom.program as program
+import loom.backend { Backend, Measured, TreeError }
+import loom_dom.dom { Dom }
+import loom_dom.wire { readByte, readWord }
 import ui_protocol.mutation { Mutation }
 import ui_protocol.record { Event }
 import ui_protocol.root { RootSupport }

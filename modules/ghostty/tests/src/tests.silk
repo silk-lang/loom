@@ -2,13 +2,13 @@
 import ui_ghostty.view { TerminalView, TerminalMessage, Options, Outgoing }
 import ui_ghostty.speech { Speech }
 import ghostty_vt.terminal { GhosttyError }
-import ui_app.font { Font }
-import ui_app.lib { Document, NoCommand, NoOutput, Node, Program, Update }
-import ui_app.program as program
-import ui_app.css
-import ui_app.runtime { Runtime, pump, drain as deliver }
-import ui_app.program { Hosted, Run }
-import ui_app.harness { drag, press, typeText, wheel, locate, snapshot }
+import loom.font { Font }
+import loom.lib { Document, NoCommand, NoOutput, Node, Program, Update }
+import loom.program as program
+import loom.css
+import loom.runtime { Runtime, pump, drain as deliver }
+import loom.program { Hosted, Run }
+import loom_tree.harness { drag, press, typeText, wheel, locate, snapshot }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, MOD_CONTROL, MOD_SHIFT, MOD_META }
 import ui_tree.inspect { NodeInfo }
 import ui_fixtures.fixtures as fixtures

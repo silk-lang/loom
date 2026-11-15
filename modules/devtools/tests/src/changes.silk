@@ -20,8 +20,8 @@ import ui_devtools.lib {
   FIELD_RADIUS,
   fieldEdited
 }
-import ui_app.runtime { Runtime, drain }
-import ui_app.harness { click, press, snapshot, typeText }
+import loom.runtime { Runtime, drain }
+import loom_tree.harness { click, press, snapshot, typeText }
 import ui_inspect.query { Query, queryFirst }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput, Role }

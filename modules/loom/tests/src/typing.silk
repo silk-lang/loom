@@ -1,7 +1,7 @@
 //! Key bindings and a focused text input: the keys the input types are not bindings.
-import ui_app.lib { Document, NoCommand, NoOutput, Node, Program, Subscriptions, Update }
-import ui_app.program as program
-import ui_app.harness { click, press }
+import loom.lib { Document, NoCommand, NoOutput, Node, Program, Subscriptions, Update }
+import loom.program as program
+import loom_tree.harness { click, press }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, MOD_CONTROL }
 import ui_fixtures.fixtures as fixtures
 import silk.core.effect { Effect }

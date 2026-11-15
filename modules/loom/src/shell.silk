@@ -1,7 +1,7 @@
 //! [`Shell`]: what a program asks of the window it runs in and the desktop around it.
 //!
 //! A command reaches the shell as it reaches any service: `run Shell.copy(text)`. The host
-//! that opens the window provides the real one (`ui_app_window.program` for a native window),
+//! that opens the window provides the real one (`loom_window.program` for a native window),
 //! and a test provides [`ShellLog`], which writes down what was asked.
 //!
 //! What the shell has to say comes back through subscriptions: `subs.menuAction`,

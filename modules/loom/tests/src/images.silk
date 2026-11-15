@@ -1,11 +1,11 @@
 //! Image body, fit, cropping and resource lifetime through the app/tree boundary, and loading
 //! by URL: the first URL a view names is resource 1.
-import ui_app.heap { allocate }
+import loom.heap { allocate }
 import ui_tree.css
 import ui_tree.css { px, percent }
-import ui_app.app { App, Context, NoCommand }
-import ui_app.runtime { Runtime, pump }
-import ui_app.ui { Ui }
+import loom.app { App, Context, NoCommand }
+import loom.runtime { Runtime, pump }
+import loom.ui { Ui }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, CpuSnapshot, Batch, Mutation }
 import ui_tree.mutation { ObjectFit }
 import ui_fixtures.fixtures as fixtures

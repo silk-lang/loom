@@ -1,14 +1,14 @@
 //! A native app with no window: the Notes example run against a [`ShellLog`] and a disk held
 //! in memory, with what a window would say posted to the shell's ports.
-import ui_app.lib { drain, post, Shell, ShellLog, TreeError }
-import ui_app.program as program
-import ui_app.shell { PORT_APPEARANCE, PORT_CLOSE, PORT_FILES, PORT_FOCUS, PORT_MENU }
-import ui_app.harness { drag, typeText, click }
-import ui_app_dom.html { Html }
-import ui_app_examples.look { SANS }
+import loom.lib { drain, post, Shell, ShellLog, TreeError }
+import loom.program as program
+import loom.shell { PORT_APPEARANCE, PORT_CLOSE, PORT_FILES, PORT_FOCUS, PORT_MENU }
+import loom_tree.harness { drag, typeText, click }
+import loom_dom.html { Html }
+import loom_examples.look { SANS }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { UiTree, Batch, FrameInput }
-import ui_app_examples.notes { Command, Disk, Message, Notes, PORT_WORKER, words }
+import loom_examples.notes { Command, Disk, Message, Notes, PORT_WORKER, words }
 import silk.collections.bytes { Bytes }
 import silk.core.effect { Effect }
 import silk.mem.allocator { Allocator, OutOfMemoryError }

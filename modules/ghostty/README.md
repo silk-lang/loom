@@ -2,13 +2,13 @@
 
 Terminals on the UI tree, through [libghostty-vt](https://mitchellh.com/writing/libghostty-1-0)
 1.0.1. Ghostty parses the program's output and keeps the screen and the scrollback; Silk draws
-that screen with ordinary tree nodes, so a terminal works wherever ui-app works: a native window
+that screen with ordinary tree nodes, so a terminal works wherever loom works: a native window
 on macOS, Windows, X11 and Wayland, and a page in a browser.
 
 | Package | What it is |
 | --- | --- |
 | [vt](vt) (`ghostty-vt`) | The libghostty-vt wrapper: an owned `Terminal`, key, paste, mouse and focus encoding, selection gestures, scrolling, styled snapshots and text export. Nothing about drawing |
-| [.](src/view.silk) (`ui-ghostty`) | `TerminalView`, a ui-app component: cells, cursor, selection, scrollback, keys, IME text, paste, copy, mouse reporting |
+| [.](src/view.silk) (`ui-ghostty`) | `TerminalView`, a loom component: cells, cursor, selection, scrollback, keys, IME text, paste, copy, mouse reporting |
 | [demo](demo) (`ui-ghostty-demo`) | A simple terminal app: the user's shell on a PTY (ConPTY on Windows) in a native window |
 | [web](web) (`ui-ghostty-web`) | The component in a page: libghostty-vt in WebAssembly, drawn as DOM nodes, with a small built-in shell |
 | [tests](tests) | The component on a real tree, driven through the tree's dispatch path |

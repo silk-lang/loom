@@ -1,10 +1,11 @@
 //! Virtual list integration tests through real layout, scrolling, focus, and view diff.
 import ui_tree.css
 import ui_tree.css { px }
-import ui_app.app { App, Context, NoCommand }
-import ui_app.runtime { Runtime, pump, frame }
-import ui_app.ui { Ui }
-import ui_app.virtual_list { VirtualOptions }
+import loom.app { App, Context, NoCommand }
+import loom.runtime { Runtime, pump }
+import loom_tree.lib { frame }
+import loom.ui { Ui }
+import loom.virtual_list { VirtualOptions }
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput, findAll }
 import ui_tree.mutation { Mutation }
 import ui_fixtures.fixtures as fixtures

@@ -1,14 +1,14 @@
 //! The notes example in a native window: a whole native app in one file of host code.
 //!
-//!   ui-app-notes
+//!   loom-notes
 //!
 //! The menu bar, the dialogs, the clipboard and the title all go through the `Shell` the
 //! window provides; the files go through the `Disk` below. A worker thread says hello through
 //! a `Poster`. In a debug build with `SILK_UI_INSPECT` set the window serves the inspector.
-import ui_app_examples.notes { Notes, Message, Command, Disk, PORT_WORKER }
-import ui_app.lib { Shell }
-import ui_app_window.background { Background }
-import ui_app_window.program { Launched, Window, launch, show, systemFonts, failed }
+import loom_examples.notes { Notes, Message, Command, Disk, PORT_WORKER }
+import loom.lib { Shell }
+import loom_window.background { Background }
+import loom_window.program { Launched, Window, launch, show, systemFonts, failed }
 import silk.core.effect { Effect }
 import silk.core.option { Option }
 import silk.core.result { Result }

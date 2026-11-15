@@ -1,6 +1,6 @@
 //! Locations, links, ports and a server render: a program of two pages, run without a tree
 //! and rendered to markup by the document backend.
-import ui_app.lib {
+import loom.lib {
   Document,
   drain,
   navigate,
@@ -13,9 +13,9 @@ import ui_app.lib {
   TreeError,
   Update
 }
-import ui_app.program as program
-import ui_app_dom.html { Html, render }
-import ui_app_dom.grid_css { writeGrid }
+import loom.program as program
+import loom_dom.html { Html, render }
+import loom_dom.grid_css { writeGrid }
 import ui_protocol.grid { Grid }
 import silk.collections.bytes { Bytes }
 import silk.core.effect { Effect }

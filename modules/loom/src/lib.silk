@@ -1,4 +1,5 @@
-//! A Silk-native UI framework in the Elm architecture, over the retained `modules/tree`.
+//! Loom: a Silk-native UI framework in the Elm architecture. It speaks only ui-protocol, so any
+//! backend can show it: ui-tree through `loom-tree`, or a browser document through `loom-dom`.
 pub import heap { Heap }
 pub import font { Font, Face, Fonts }
 pub import ui { Ui, Identity, AnchorRect, ROOT_ID, OVERLAY_KEY, textKey }
@@ -13,9 +14,7 @@ pub import runtime {
   post,
   pump,
   tick,
-  resize,
-  frame,
-  frameRoot
+  resize
 }
 pub import tasks { Tasks }
 // What the inspector reads a program through: a value as text, and the steps it took.

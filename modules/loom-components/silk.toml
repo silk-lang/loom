@@ -1,11 +1,11 @@
 [package]
-name = "ui-components"
-description = "Components for ui-app views: buttons, fields, lists, menus, dialogs and more"
+name = "loom-components"
+description = "Loom Components: components for Loom views: buttons, fields, lists, menus, dialogs and more"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 kind = "library"
 exports = ["lib", "theme", "layout", "button", "choice", "slider", "field", "list", "tabs", "menu", "dialog", "popover", "numeric", "color", "placement"]
 
 [dependencies]
-ui_app = { path = "../app", package = "ui-app" }
-ui_tree = { path = "../tree", package = "ui-tree" }
+loom = { path = "../loom", package = "loom" }
+ui_protocol = { path = "../protocol", package = "ui-protocol" }

@@ -1,18 +1,19 @@
 [package]
-name = "ui-app-window-tests"
+name = "loom-window-tests"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 main = "tests.silk"
 kind = "library"
 [dependencies]
 ui_assets = { path = "../../../assets", package = "ui-assets" }
-ui_app_window = { path = "..", package = "ui-app-window" }
+loom_window = { path = "..", package = "loom-window" }
 ui_tree = { path = "../../../tree", package = "ui-tree" }
 ui_fixtures = { path = "../../../tree/fixtures", package = "ui-tree-fixtures" }
 
-ui_app = { path = "../..", package = "ui-app" }
-ui_app_examples = { path = "../../examples", package = "ui-app-examples" }
-ui_app_inspect = { path = "../../inspect", package = "ui-app-inspect" }
+loom = { path = "../..", package = "loom" }
+loom_tree = { path = "../../tree", package = "loom-tree" }
+loom_examples = { path = "../../examples", package = "loom-examples" }
+loom_inspect = { path = "../../inspect", package = "loom-inspect" }
 ui_inspect_server = { path = "../../../inspect/server", package = "ui-inspect-server" }
 
 window = { git = "https://github.com/silk-lang/lib-native.git", rev = "7166a093a36a64be92125f428ed8db5daf211b5b", path = "modules/platform/window", package = "platform-window" }

@@ -1,13 +1,13 @@
 //! The terminal app: one terminal filling the window, on the user's shell. [`Session`] does
 //! the work (the PTY, the view, what flows between them), so a test can run it on a command
 //! of its own.
-import ui_app.font { Font, Fonts }
+import loom.font { Font, Fonts }
 import pty { Pty, PtyError }
 import ghostty_vt.terminal { GhosttyError }
 import ui_ghostty.view { TerminalView, TerminalMessage, Options, Outgoing }
-import ui_app.css
-import ui_app.css { percent, px, BoxSizing }
-import ui_app.lib {
+import loom.css
+import loom.css { percent, px, BoxSizing }
+import loom.lib {
   CommandSet,
   Document,
   Node,

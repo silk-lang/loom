@@ -3,8 +3,9 @@
 //!
 //! Each call draws a frame first (the tree hit-tests against the last frame's layout), feeds the
 //! input, handles the records, and draws again.
-import app { App, Perform }
-import runtime { Runtime, pump, feed }
+import loom.app { App, Perform }
+import loom.runtime { Runtime, pump }
+import lib { feed }
 import ui_protocol.input { Input, BUTTON_PRIMARY }
 import ui_protocol.mutation { Role }
 import ui_tree.inspect { NodeInfo, DescribeOptions, findAll, info, describe }

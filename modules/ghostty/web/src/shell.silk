@@ -1,11 +1,11 @@
 //! A shell for a page: line editing and a few commands, enough to show the terminal's
 //! colors, styles, scrollback and selection with no process behind it.
-import ui_app.font { Font, Fonts }
+import loom.font { Font, Fonts }
 import ghostty_vt.terminal { GhosttyError }
 import ui_ghostty.view { TerminalView, TerminalMessage, Options, Outgoing }
-import ui_app.css
-import ui_app.css { percent, px, BoxSizing }
-import ui_app.lib { Document, Node, NoCommand, NoOutput, Program, Subscriptions, Update }
+import loom.css
+import loom.css { percent, px, BoxSizing }
+import loom.lib { Document, Node, NoCommand, NoOutput, Program, Subscriptions, Update }
 import silk.color.rgba { Rgba }
 import silk.core.effect { Effect }
 import silk.mem.allocator { Allocator, OutOfMemoryError }

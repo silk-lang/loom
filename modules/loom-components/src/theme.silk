@@ -2,12 +2,12 @@
 //!
 //! Components take the theme as their second argument, so an app picks or builds one theme
 //! and passes it down: `button(&mut ui, &theme, "Save", || Message.Save)`.
-import ui_app.font { Font }
-import ui_app.heap { allocate }
-import ui_tree.css
-import ui_tree.css { px }
-import ui_app.ui { Ui }
-import ui_tree.mutation { BorderStyle, BoxShadow }
+import loom.font { Font }
+import loom.heap { allocate }
+import ui_protocol.css
+import ui_protocol.css { px }
+import loom.ui { Ui }
+import ui_protocol.mutation { BorderStyle, BoxShadow }
 import silk.color.rgba { Rgba }
 import silk.core.ownership { Copy }
 import silk.geometry.corners { Corners }

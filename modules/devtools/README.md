@@ -14,7 +14,7 @@ data (design: the Paper file "Silk UI Devtools"). Its palette, type and the smal
 panel draws with (rows, tabs, badges, segmented controls, fields, section labels, cards,
 buttons, icons) are in `theme.silk`; the Design fields' reading and writing in `design.silk`.
 
-It is built with the Silk framework itself ([ui-app](../../app)) and talks to the app only
+It is built with the Silk framework itself ([loom](../../loom)) and talks to the app only
 through the inspector protocol ([ui-inspect-server](../server)), the same requests
 ui-inspect-cli and ui-inspect-mcp send. So anything it shows, a script or an agent can read
 too, and the devtools window is itself an app the inspector can drive. It keeps one protocol 3
@@ -40,14 +40,14 @@ Packages:
 ## Running it
 
 The app to inspect must be a debug build started with `SILK_UI_INSPECT` set (see
-[ui-inspect-server](../server/README.md#turning-it-on)). Every ui-app app run with
-`runWindowWith` and an `Inspector` serves it; the owned todo demo (`modules/app/demo`), component
-gallery (`modules/components/demo`) and inbox demo (`modules/tree/demo`) do.
+[ui-inspect-server](../server/README.md#turning-it-on)). Every loom app run with
+`runWindowWith` and an `Inspector` serves it; the owned todo demo (`modules/loom/demo`), component
+gallery (`modules/loom-components/demo`) and inbox demo (`modules/tree/demo`) do.
 
 ```sh
 silk task native devtools todo             # the todo demo and devtools
 silk task native devtools external --app-binary /path/to/debug-app
-SILK_UI_INSPECT=1 ui-app-demo &                            # or any app, then:
+SILK_UI_INSPECT=1 loom-demo &                            # or any app, then:
 silk task native devtools run --connect 1   # 1, tcp:<port> or a socket path
 ```
 
@@ -60,15 +60,15 @@ them unoptimized, which links in a second and makes the devtools inspectable the
 
 Every app the native window host runs with the devtools as its companion can show them in its
 own process, with no second program and no socket: every silk-ui app that runs through
-ui-app-window, and a tree client that calls `host.runWindowWith` with
+loom-window, and a tree client that calls `host.runWindowWith` with
 `EmbeddedDevtools.fromEnvironment()` (the direct-tree counter does). The app's code does not
 change. In a debug build:
 
 ```sh
-SILK_UI_DEVTOOLS=window ui-app-demo   # the todo demo, devtools in a window of their own
-SILK_UI_DEVTOOLS=dock ui-app-demo     # docked at the bottom of the app's window
-SILK_UI_DEVTOOLS=1 ui-app-demo        # a window where the host has windows, else the dock
-SILK_UI_INSPECT=1 ui-app-demo         # closed at start; F12 opens them
+SILK_UI_DEVTOOLS=window loom-demo   # the todo demo, devtools in a window of their own
+SILK_UI_DEVTOOLS=dock loom-demo     # docked at the bottom of the app's window
+SILK_UI_DEVTOOLS=1 loom-demo        # a window where the host has windows, else the dock
+SILK_UI_INSPECT=1 loom-demo         # closed at start; F12 opens them
 silk task native devtools embedded    # the native check of both
 ```
 
@@ -215,7 +215,7 @@ answers them when it next serves the extension, and the reply comes with the not
 - `tree`: every node (or a target's subtree) in tree order as node objects with `parent`,
   `depth` and `children`.
 - `events`: the inspector's event log. An app feeds it by calling `Inspector.observe(&tree)`
-  right before it takes the tree's records (ui-app-window does). `since` (a `seq`) and `limit`
+  right before it takes the tree's records (loom-window does). `since` (a `seq`) and `limit`
   page through it; `next` is the `seq` the next record gets. ui-inspect-mcp has it as
   `ui_events`.
 

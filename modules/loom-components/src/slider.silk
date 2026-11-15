@@ -1,13 +1,13 @@
 //! [`slider`]: a value between a minimum and a maximum, in steps. Drag the thumb or click the
 //! track with the pointer, or focus it and use the arrow keys (one step), Page Up and Page Down
 //! (ten steps), Home and End.
-import ui_tree.css
-import ui_tree.css { px, percent }
+import ui_protocol.css
+import ui_protocol.css { px, percent }
 import theme { Theme, border, focusRing }
 import layout { spacer }
-import ui_app.ui { Ui, Reply }
-import ui_tree.mutation { Position, Role, Cursor, BoxSizing }
-import ui_tree.node { Event, EventKind }
+import loom.ui { Ui, Reply }
+import ui_protocol.mutation { Position, Role, Cursor, BoxSizing }
+import ui_protocol.record { Event, EventKind }
 import silk.core.option { Option }
 import silk.geometry.rect { Rect }
 import silk.num.f32

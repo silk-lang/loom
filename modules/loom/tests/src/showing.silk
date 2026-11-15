@@ -1,11 +1,11 @@
 //! [`show`] and [`showTree`]: values written down by reflection.
-import ui_app.show { show, showTree }
-import ui_app.app { NoCommand }
-import ui_app.harness { click, press }
-import ui_app.program as program
-import ui_app.runtime { drain, tick }
-import ui_app_examples.counter { Counter, Message as CounterMessage }
-import ui_app_examples.look { SANS }
+import loom.show { show, showTree }
+import loom.app { NoCommand }
+import loom_tree.harness { click, press }
+import loom.program as program
+import loom.runtime { drain, tick }
+import loom_examples.counter { Counter, Message as CounterMessage }
+import loom_examples.look { SANS }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput }
 import silk.collections.list { List }

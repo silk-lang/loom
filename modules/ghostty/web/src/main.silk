@@ -1,8 +1,8 @@
 //! The terminal in a page. A browser has no PTY, so a small shell written here answers
 //! instead: `help` lists what it knows.
 import shell { WebShell, Message }
-import ui_app.lib { NoCommand }
-import ui_app_dom.page
+import loom.lib { NoCommand }
+import loom_dom.page
 import silk.core.effect { Effect }
 import silk.mem.allocator { Allocator }
 

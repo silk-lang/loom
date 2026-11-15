@@ -1,11 +1,11 @@
 //! On and off choices: [`checkbox`] and [`switch`]. Each is one focusable row with the
 //! control and its label, so clicking the label toggles it too; Space toggles the focused one.
 //! The model owns the value: the view passes it in and `onChange(newValue)` comes back.
-import ui_tree.css
-import ui_tree.css { px }
+import ui_protocol.css
+import ui_protocol.css { px }
 import theme { Theme, border, focusRing }
-import ui_app.ui { Ui }
-import ui_tree.mutation { Align, Role, Cursor, CanvasCommand, BoxSizing }
+import loom.ui { Ui }
+import ui_protocol.mutation { Align, Role, Cursor, CanvasCommand, BoxSizing }
 import silk.color.rgba { Rgba }
 
 /// The check mark, drawn in a 16 pixel box.

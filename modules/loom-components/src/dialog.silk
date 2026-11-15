@@ -4,15 +4,15 @@
 //! An open dialog takes focus (or a field inside it that calls `ui.takeFocus()` does), keeps
 //! Tab and Shift+Tab inside it, and closes with Escape or a click on the scrim. When it closes,
 //! the button made with [`dialogButton`] takes focus back.
-import ui_tree.css
-import ui_tree.css { px, percent, Keyword }
+import ui_protocol.css
+import ui_protocol.css { px, percent, Keyword }
 import theme { Theme, raised }
 import layout { heading }
 import button { Tone, buttonLook }
-import ui_app.ui { Ui, Reply, textKey }
+import loom.ui { Ui, Reply, textKey }
 import silk.num.u64
-import ui_tree.mutation { Position, Align, Role }
-import ui_tree.node { Event, EventKind }
+import ui_protocol.mutation { Position, Align, Role }
+import ui_protocol.record { Event, EventKind }
 import silk.core.ownership { Copy }
 import silk.text.string { String }
 

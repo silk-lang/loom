@@ -1,4 +1,4 @@
-//! The devtools window as a ui-app app, in three columns under a top bar: the inspected app's
+//! The devtools window as a loom app, in three columns under a top bar: the inspected app's
 //! element tree on the left; in the middle a tab for each panel the app's extensions add that
 //! the app renders (a silk-ui program's Program panel), the event log, the frame timeline with
 //! the frame stats, the accessibility audit, then the extensions' data panels; on the right the
@@ -119,8 +119,8 @@ import ui_inspect_server.topics {
   TOPIC_NAMES,
   topicNamed
 }
-import ui_app.app { App, Perform, Context, Subscriptions }
-import ui_app.ui { Ui, Reply }
+import loom.app { App, Perform, Context, Subscriptions }
+import loom.ui { Ui, Reply }
 import ui_inspect_server.reply { textField, flagField, idField, writeString }
 import ui_tree.inspect { writeInt }
 import ui_tree.mutation {

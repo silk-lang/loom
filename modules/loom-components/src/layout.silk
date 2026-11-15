@@ -1,11 +1,11 @@
 //! Layout and text helpers: [`spacer`], [`divider`], [`stack`] and [`layer`], [`scrollView`],
 //! [`card`], [`heading`], [`caption`] and [`paragraph`]. `ui.row` and `ui.column` (flex
 //! containers) come with the framework.
-import ui_tree.css
-import ui_tree.css { px }
+import ui_protocol.css
+import ui_protocol.css { px }
 import theme { Theme, border, padding2 }
-import ui_app.ui { Ui }
-import ui_tree.mutation { Position, Overflow, Role, Align, WhiteSpace }
+import loom.ui { Ui }
+import ui_protocol.mutation { Position, Overflow, Role, Align, WhiteSpace }
 
 /// A box that takes the free space of a row or column, pushing what follows to the end.
 pub fn spacer<M>(ui: &mut Ui<M>) -> () {
