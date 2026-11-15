@@ -8,7 +8,7 @@
 //! component works from the keyboard.
 //!
 //! In a debug build with `SILK_UI_INSPECT` set it serves the inspector protocol, so the devtools
-//! window (modules/inspect/devtools) and ui-inspect-cli can inspect and drive it.
+//! window (modules/devtools) and ui-inspect-cli can inspect and drive it.
 //!
 //! `--check` ignores real input: it clicks Save and presses Tab, then compares the window's
 //! surface with the CPU reference of the same frame. Exit code 0 within tolerance, 1 outside,

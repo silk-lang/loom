@@ -140,13 +140,13 @@ shapes into accessible UI controls; applications must supply document semantics 
 The native event/GPU loop now lives in `ui-tree-window.host`. This package retains
 its app-facing `runWindow`, `runWindowHosted`, and `WindowContent` API as an adapter.
 Direct tree clients can use the same host without creating an app runtime; see
-[the direct-tree example](../../tree/window/demo/src/main.silk).
+[the direct-tree example](https://github.com/silk-lang/lib-ui/blob/main/modules/tree/window/demo/src/main.silk).
 
 `runWindowHosted` (and so `runWindow`, `runWindowWith` and `program.show`) runs the host with
 the in-process devtools as its companion (`ui_devtools.embedded.EmbeddedDevtools`, read from the
 environment): in a debug build, `SILK_UI_DEVTOOLS=window`, `dock` or `1` opens them at start and
 F12 toggles them, with no change to the app. They are inert in release builds and in check
-mode. See [ui-inspect-devtools](../../inspect/devtools/README.md#in-the-apps-own-process).
+mode. See [ui-inspect-devtools](../../devtools/README.md#in-the-apps-own-process).
 
 The host registers silk-ui's inspector extension (`silk-ui`, [loom-inspect](../inspect)) with
 the inspector it is given, and serves it on every turn of its loop while the inspector is on:

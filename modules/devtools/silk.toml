@@ -7,10 +7,10 @@ kind = "library"
 exports = ["lib", "data", "link", "remote", "devtools", "embedded"]
 
 [dependencies]
-loom = { path = "../../loom", package = "loom" }
-loom_tree = { path = "../../loom/tree", package = "loom-tree" }
-ui_tree = { path = "../../tree", package = "ui-tree" }
-ui_inspect = { path = "..", package = "ui-inspect" }
-ui_inspect_server = { path = "../server", package = "ui-inspect-server" }
-ui_tree_window = { path = "../../tree/window", package = "ui-tree-window" }
+loom = { path = "../loom", package = "loom" }
+loom_tree = { path = "../loom/tree", package = "loom-tree" }
+ui_tree = { git = "https://github.com/silk-lang/lib-ui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/tree", package = "ui-tree" }
+ui_inspect = { git = "https://github.com/silk-lang/lib-ui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/inspect", package = "ui-inspect" }
+ui_inspect_server = { git = "https://github.com/silk-lang/lib-ui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_tree_window = { git = "https://github.com/silk-lang/lib-ui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/tree/window", package = "ui-tree-window" }
 properties = { git = "https://github.com/silk-lang/lib-css.git", rev = "eb2b211cea842b1a410fc55bc4a69b655c6e40cb", path = "modules/properties", package = "css-properties" }

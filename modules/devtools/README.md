@@ -14,8 +14,8 @@ data (design: the Paper file "Silk UI Devtools"). Its palette, type and the smal
 panel draws with (rows, tabs, badges, segmented controls, fields, section labels, cards,
 buttons, icons) are in `theme.silk`; the Design fields' reading and writing in `design.silk`.
 
-It is built with the Silk framework itself ([loom](../../loom)) and talks to the app only
-through the inspector protocol ([ui-inspect-server](../server)), the same requests
+It is built with the Silk framework itself ([loom](../loom)) and talks to the app only
+through the inspector protocol ([ui-inspect-server](https://github.com/silk-lang/lib-ui/tree/main/modules/inspect/server)), the same requests
 ui-inspect-cli and ui-inspect-mcp send. So anything it shows, a script or an agent can read
 too, and the devtools window is itself an app the inspector can drive. It keeps one protocol 3
 session open with the app, subscribes to its topics, and reads again only what the app says
@@ -23,26 +23,26 @@ changed. It knows no framework: the tabs past its own come from `hello`.
 
 Packages:
 
-- `modules/inspect/devtools` (`ui-inspect-devtools`): the app (`devtools.silk`), what it reads out of
+- `modules/devtools` (`ui-inspect-devtools`): the app (`devtools.silk`), what it reads out of
   the protocol's replies (`data.silk`) and the `Link` service it talks through (`link.silk`):
   requests numbered by `Requests` over the client end of a `Channel`, notifications, requests
   answered later (`Link.ask`, for extensions), and what the app pushed. `remote.silk` replays an
   extension panel's view (`ViewHost`). `embedded.silk` runs the same app in the inspected app's
   own process.
-- `modules/inspect/devtools/app` (`ui-devtools`): the window, with a `Link` over a
+- `modules/devtools/app` (`ui-devtools`): the window, with a `Link` over a
   `SocketChannel` session. The pump thread rings a bell that wakes the window, which sends the
   devtools `Message.Pull`. View batches go from the session to the window's content, which
   replays them and takes their nodes' records (`WindowContent.intercept`) before the devtools'
   program does.
-- `modules/inspect/devtools/tests`: the devtools inspecting the todo example in the same process,
+- `modules/devtools/tests`: the devtools inspecting the todo example in the same process,
   and golden scenes.
 
 ## Running it
 
 The app to inspect must be a debug build started with `SILK_UI_INSPECT` set (see
-[ui-inspect-server](../server/README.md#turning-it-on)). Every loom app run with
+[ui-inspect-server](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#turning-it-on)). Every loom app run with
 `runWindowWith` and an `Inspector` serves it; the owned todo demo (`modules/loom/demo`), component
-gallery (`modules/loom-components/demo`) and inbox demo (`modules/tree/demo`) do.
+gallery (`modules/loom-components/demo`) and inbox demo (lib-ui's `modules/tree/demo`) do.
 
 ```sh
 silk task native devtools todo             # the todo demo and devtools
@@ -78,7 +78,7 @@ not the app. `SILK_UI_DEVTOOLS=0` keeps them closed and the shortcut off.
 
 How (`embedded.silk`, an `EmbeddedDevtools`):
 
-- They are a window host `Companion` (see [ui-tree-window](../../tree/window/README.md)): the
+- They are a window host `Companion` (see [ui-tree-window](https://github.com/silk-lang/lib-ui/blob/main/modules/tree/window/README.md)): the
   devtools app runs in the app's tree, on root `DEVTOOLS_ROOT`, with ids counting up from
   `FIRST_ID` (`0xF0000000`), far above the ids clients choose, and a font family of their own.
   Their `Runtime` is placed there with `placeAt`, and their root is set aside in the tree, so
@@ -144,7 +144,7 @@ second until it answers.
     client set for each state (base, hover, active, focus, focus-visible) and the computed style.
     An edit stays over what the app sets, also when the app restyles the node, until it is reset
     or resolved (see
-    [Style edits and the edit log](../server/README.md#style-edits-and-the-edit-log)): it shows
+    [Style edits and the edit log](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#style-edits-and-the-edit-log)): it shows
     as a `style <state> edited` section in amber, marked down its side, and the app's
     declarations it hides are struck through.
   - **Edits**: the edit log as cards (the app as a whole for comments on no node): each edit's
@@ -165,7 +165,7 @@ second until it answers.
   targets under 24 by 24 and text under WCAG contrast; the tab counts the issues. Click an
   issue to select its node.
 - **The app's extension panels**, one tab each, as `hello` lists them (see
-  [Extensions](../server/README.md#extensions)): panels with a view first, panels with data
+  [Extensions](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#extensions)): panels with a view first, panels with data
   only after a rule, each with its extension's id. A panel with data only shows it with a
   generic view: an object's members and an array's elements in rows, nested ones indented,
   read when the tab opens and again when the panel's topic says it changed. A panel with a view
@@ -203,12 +203,12 @@ keep only `pick`. Refresh (or F5) reads everything once.
 
 ## The protocol it uses
 
-A protocol 3 session (see [the server's protocol](../server/README.md#protocol)): `hello` with
+A protocol 3 session (see [the server's protocol](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#protocol)): `hello` with
 `"protocol": 3` when it connects, `subscribe` and `unsubscribe` as notifications whenever Live
 or the tab changes, and `highlight` as a notification on hover. Every other request carries an
 `id`. Besides `hello`, `inspect`, `highlight` and `stats`, these commands came with the devtools.
 Protocol 2 added `frames`, `styles`, `setStyle`, `resetStyles`, `pickMode` and `audit` (see the
-[protocol table](../server/README.md#protocol)); against an older app those panels stay empty
+[protocol table](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#protocol)); against an older app those panels stay empty
 and the rest works. An extension's commands (a data panel's) go out with `Link.ask`: the app
 answers them when it next serves the extension, and the reply comes with the notifications.
 
@@ -225,9 +225,9 @@ answers them when it next serves the extension, and the reply comes with the not
 ## Tests
 
 ```sh
-silk test --manifest-path modules/inspect/devtools/tests/silk.toml --root src/tests.silk
-silk build --manifest-path modules/inspect/devtools/tests/silk.toml
-build/llvm/x86_64-unknown-linux-gnu/debug/ui-inspect-devtools-tests modules/inspect/devtools/tests/goldens [--update]
+silk test --manifest-path modules/devtools/tests/silk.toml --root src/tests.silk
+silk build --manifest-path modules/devtools/tests/silk.toml
+build/llvm/x86_64-unknown-linux-gnu/debug/ui-inspect-devtools-tests modules/devtools/tests/goldens [--update]
 silk task native devtools check
 ```
 

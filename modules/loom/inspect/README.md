@@ -1,9 +1,9 @@
 # loom-inspect
 
 silk-ui's inspector extension, `silk-ui`: what a silk-ui program adds to the inspector
-([ui-inspect-server](../../inspect/server)), which knows the tree and nothing else. It is
+([ui-inspect-server](https://github.com/silk-lang/lib-ui/tree/main/modules/inspect/server)), which knows the tree and nothing else. It is
 registered and served through the inspector's extension API
-([Extensions](../../inspect/server/README.md#extensions)), the way any other framework would add
+([Extensions](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#extensions)), the way any other framework would add
 its own; loom itself knows no inspector, and the inspector, its CLI, its MCP bridge and the
 devtools know nothing of silk-ui.
 
@@ -38,7 +38,7 @@ after it with the lines it added and removed. It runs in the app, on a `ViewBack
 batches go to the clients that opened the panel and whose events come back from them, only while
 one has it open; opening it again starts it from nothing. A client draws it with its own fonts
 and look (the devtools replay it, see
-[Remote views](../../inspect/devtools/README.md#remote-views)).
+[Remote views](../../devtools/README.md#remote-views)).
 
 ## Tests
 
@@ -47,7 +47,7 @@ and look (the devtools replay it, see
   waits until the extension is served and then gets the messages, the topic is pushed, a model
   diff, the program and an unknown step; the Program panel's view runs only while subscribed,
   starts from nothing, follows a new message, and stops when closed.
-- `modules/inspect/devtools/tests`: the devtools show the Program panel the app renders, in the
+- `modules/devtools/tests`: the devtools show the Program panel the app renders, in the
   tests' session and in the app's own process, and a golden scene of it.
 
 ## Limits
