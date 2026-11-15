@@ -361,5 +361,19 @@ The document API has the same helpers: `h.class(...)`, `h.id(...)`, and
 Named attributes support `data-*`, `aria-*`, `lang`, and `dir`. Empty strings
 remain present; omitting an attribute in the next view removes it. Repeated
 assignments to a name keep the last value. The tree, HTML renderer and browser
-wire preserve those distinctions. CSS loading and native sheet adoption are
-still in progress on this feature branch.
+wire preserve those distinctions. The native tree accepts compiled sheets through
+its batch protocol; automatic stylesheet loading is still in progress.
+
+### Custom properties
+
+`ui.customProperty("--gap", "8px")` and `h.customProperty("--gap", "8px")`
+declare a custom property in the base look. Use `customPropertyFor(state, name,
+value, important)` for another look or an important declaration. Names preserve
+case; values are CSS tokens. An empty value is present, and omitting a property
+in a later view removes it.
+
+Custom properties inherit into both sheet declarations and style objects in the
+native tree. The DOM transport uses CSS custom properties directly, and the HTML
+renderer writes them into inline styles or state rules. Lazy regions keep their
+custom declarations when reused. Clearing an ordinary style restores any custom
+properties that the new view still declares in that look.

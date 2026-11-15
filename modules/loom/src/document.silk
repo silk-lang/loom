@@ -105,6 +105,7 @@ union Op {
   Element { text: Span },
   ClassName { text: Span },
   NamedAttribute { name: Span, value: Span },
+  CustomProperty { state: StyleState, name: Span, value: Span, important: bool },
   ElementId { text: Span },
   FocusTrap { value: bool },
   TakeFocus,
@@ -920,6 +921,14 @@ impl<M> Document<M> {
   pub fn class(self: &Self, value: string) -> Attr { return self.className(value) }
 
   /// A literal data/ARIA attribute, shared by native and document backends.
+  pub fn customProperty(self: &Self, name: string, value: string) -> Attr {
+    return self.customPropertyFor(StyleState.Base, name, value, false)
+  }
+
+  pub fn customPropertyFor(self: &Self, state: StyleState, name: string, value: string, important: bool) -> Attr {
+    return self.op(Op.CustomProperty { state: state, name: self.store(name), value: self.store(value), important: important })
+  }
+
   pub fn attribute(self: &Self, name: string, value: string) -> Attr {
     return self.op(Op.NamedAttribute { name: self.store(name), value: self.store(value) })
   }
@@ -1260,6 +1269,7 @@ fn apply<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, start: u32, count
         ui.element(tree.text(text))
       }
       Op.NamedAttribute { name, value } => { ui.attribute(tree.text(name), tree.text(value)) }
+      Op.CustomProperty { state, name, value, important } => { ui.customPropertyFor(state, tree.text(name), tree.text(value), important) }
       Op.ClassName { text } => {
         ui.className(tree.text(text))
       }

@@ -594,6 +594,17 @@ class Page {
           for (let count = r.u32(); count > 0; count--) this.declare(style, state, r.text());
           break;
         }
+        case 37: {
+          const id = r.u32(), state = r.u8(), name = r.text();
+          const value = r.u8() ? r.text() : null;
+          const important = r.u8() !== 0;
+          const style = this.styleOf(id, state, value !== null);
+          if (style && name.startsWith("--") && name.length > 2) {
+            if (value === null) style.removeProperty(name);
+            else style.setProperty(name, value === "" ? " " : value, important || state !== 0 ? "important" : "");
+          }
+          break;
+        }
         case 6: {
           const id = r.u32();
           const state = r.u8();

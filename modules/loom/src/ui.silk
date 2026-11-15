@@ -235,6 +235,7 @@ pub struct Extra {
   pub elementId: Span,
   /// Packed literal attributes; lengths are relative so lazy regions can copy them.
   pub attributes: Span,
+  pub customProperties: Span,
   pub multiline: bool,
   pub readOnly: bool,
   /// `takeFocus` was called: the diff focuses the node when this render asks and the last
@@ -298,6 +299,7 @@ impl Extra {
       transition: Span.empty(),
       elementId: Span.empty(),
       attributes: Span.empty(),
+      customProperties: Span.empty(),
       multiline: false,
       readOnly: false,
       wantsFocus: false,
@@ -2105,6 +2107,7 @@ impl<M> Ui<M> {
         extra.transition = shifted(extra.transition, byteShift)
         extra.elementId = shifted(extra.elementId, byteShift)
         extra.attributes = shifted(extra.attributes, byteShift)
+        extra.customProperties = shifted(extra.customProperties, byteShift)
         extra.canvas = shifted(extra.canvas, canvasShift)
         if extra.grid != NO_ENTRY {
           let grid = self.heap.alloc(self.previous.grids.asSlice()[u32.toUsize(extra.grid)].copy())
@@ -2662,6 +2665,35 @@ impl<M> Ui<M> {
 
   /// The CSS id, independent of the runtime's numeric node id.
   pub fn id(self: &mut Self, value: string) -> () { self.elementId(value) }
+
+  pub fn customProperty(self: &mut Self, name: string, value: string) -> () {
+    self.customPropertyFor(StyleState.Base, name, value, false)
+  }
+
+  pub fn customPropertyFor(self: &mut Self, state: StyleState, name: string, value: string, important: bool) -> () {
+    if self.dispatching || !String.startsWith(name, "--") || String.utf8Bytes(name).length <= 2 { return () }
+    let code: u8 = match state { StyleState.Base => 0 StyleState.Hover => 1 StyleState.Active => 2 StyleState.Focus => 3 StyleState.FocusVisible => 4 StyleState.Starting => 5 }
+    let previous = self.arena.extraCopy(self.arena.entryRef(self.current)).customProperties
+    let mut packed = List<u8>.make()
+    let mut at: u32 = 0
+    while at < previous.length {
+      let pair = self.arena.namedAt(previous, at)
+      let key = self.arena.text(pair.name)
+      if key[0] != code || !sameBytes(Slice.view<u8>(key, 1, key.length - 1), String.utf8Bytes(name)) {
+        self.heap.alloc(packed.appendSlice(self.arena.text(Span { start: previous.start + at, length: pair.next - at })))
+      }
+      at = pair.next
+    }
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(name).length + 1)
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(value).length + 1)
+    self.heap.alloc(packed.append(code))
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(name)))
+    self.heap.alloc(packed.append(if important { 1 } else { 0 }))
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(value)))
+    let span = self.store(packed.asSlice())
+    let extra = self.extraMut()
+    extra.customProperties = span
+  }
 
   /// A literal selector attribute. Omit it in a later view to remove it; empty stays present.
   pub fn attribute(self: &mut Self, name: string, value: string) -> () {

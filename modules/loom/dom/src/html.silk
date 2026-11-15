@@ -10,6 +10,8 @@
 //!
 //! The markup goes inside the element `mount` gets as its root.
 import grid_css { writeGrid }
+import custom
+import css_style.declaration_values
 import wire { roleName, cursorName }
 import loom.backend { Backend, Measured, TreeError }
 import loom.program { Program, CommandSet, Hosted, Run, make }
@@ -64,6 +66,7 @@ struct Element {
   parent: u32,
   children: List<u32>,
   looks: List<List<Declaration>>,
+  custom: List<CustomProperty>,
   text: String,
   aria: Role,
   label: String,
@@ -96,6 +99,8 @@ struct Element {
   arias: List<Aria>,
   literals: List<Literal>,
 }
+
+struct CustomProperty { state: usize, name: String, value: Bytes, important: bool }
 
 struct Literal { name: String, value: Option<String> }
 
@@ -431,6 +436,7 @@ impl Html {
             parent: 0,
             children: List<u32>.make(),
             looks: move looks,
+            custom: List<CustomProperty>.make(),
             text: String.make(),
             aria: Role.None,
             label: String.make(),
@@ -524,10 +530,41 @@ impl Html {
           i = i + 1
         }
       }
+      Mutation.SetCustomProperty { id, state, name, value, important } => {
+        let slot = self.slot(id)
+        if slot == 0 || !declaration_values.customName(name.ownedUtf8Bytes()) { return () }
+        let mut normalized = Option<Bytes>.None
+        if let Option<String>.Some { value: text } = &value {
+          normalized = run custom.normalized(&text)
+          if normalized.isNone() { return () }
+        }
+        let entries = &mut self.nodes.asMutSlice()[slot - 1].custom
+        let selected = stateIndex(state)
+        let mut at: usize = 0
+        while at < entries.length() {
+          if entries.asSlice()[at].state == selected && String.view(&entries.asSlice()[at].name) == String.view(&name) { break }
+          at = at + 1
+        }
+        match move normalized {
+          Option<Bytes>.Some { value: bytes } => {
+            let property = CustomProperty { state: selected, name: run String.copy(String.view(&name)), value: move bytes, important: important }
+            if at == entries.length() { run entries.append(move property) }
+            else { let items = entries.asMutSlice()
+              items[at] = move property }
+          }
+          _ => { if at < entries.length() { drop entries.remove(at) } }
+        }
+      }
       Mutation.ClearStyle { id, state } => {
         let slot = self.slot(id)
         if slot != 0 {
           self.nodes.asMutSlice()[slot - 1].looks.asMutSlice()[stateIndex(state)].clear()
+          let entries = &mut self.nodes.asMutSlice()[slot - 1].custom
+          let mut at = entries.length()
+          while at > 0 {
+            at = at - 1
+            if entries.asSlice()[at].state == stateIndex(state) { drop entries.remove(at) }
+          }
         }
       }
       Mutation.SetText { id, value } => {
@@ -847,6 +884,7 @@ impl Html {
       run self.declaration(&mut text, &base[i], false)
       i = i + 1
     }
+    run customDeclarations(&mut text, node, 0)
     if let Option<Cursor>.Some { value: cursor } = node.cursor {
       run text.append(b"cursor:")
       run text.append(String.utf8Bytes(cursorName(cursor)))
@@ -1086,7 +1124,7 @@ impl Html {
     let mut i: usize = 0
     while i < nodes.length {
       let look = nodes[i].looks.asSlice()[state].asSlice()
-      if nodes[i].alive && look.length != 0 {
+      if nodes[i].alive && (look.length != 0 || hasCustom(&nodes[i], state)) {
         if nodes[i].tag.ownedByteLength() != 0 {
           run out.append(b"[data-silk-html=\"")
         } else {
@@ -1101,6 +1139,7 @@ impl Html {
           run self.declaration(&mut out, &look[j], true)
           j = j + 1
         }
+        run customDeclarations(&mut out.*, &nodes[i], state)
         run out.append(b"}")
       }
       i = i + 1
@@ -1224,4 +1263,24 @@ fn contains(ids: &[u32], id: u32) -> bool {
     i = i + 1
   }
   return false
+}
+
+fn hasCustom(node: &Element, state: usize) -> bool {
+  let entries = node.custom.asSlice()
+  let mut i: usize = 0
+  while i < entries.length {
+    if entries[i].state == state { return true }
+    i = i + 1
+  }
+  return false
+}
+
+effect fn customDeclarations(out: &mut Bytes, node: &Element, state: usize) -> ()
+  ! OutOfMemoryError ? &mut Allocator {
+  let entries = node.custom.asSlice()
+  let mut i: usize = 0
+  while i < entries.length {
+    if entries[i].state == state { run custom.declaration(&mut out.*, &entries[i].name, &entries[i].value, entries[i].important || state != 0) }
+    i = i + 1
+  }
 }

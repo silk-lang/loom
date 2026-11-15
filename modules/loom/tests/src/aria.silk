@@ -269,3 +269,84 @@ test effect fn namedWireDistinguishesEmptyFromAbsent() -> () ! AssertionError<'s
   let mut allocator = Allocator.systemAllocatorProvider()
   run literalWireBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
+
+import ui_protocol.batch { Batch }
+import ui_protocol.mutation { StyleState }
+
+effect fn customMarkupBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError ? &mut Allocator {
+  let mut page = Html.make()
+  let mut batch = Batch.make()
+  run batch.create(1, NodeKind.Box)
+  run batch.root(1)
+  run batch.customProperty(1, StyleState.Base, "--Gap", Option<string>.some("8px"), true)
+  run batch.customProperty(1, StyleState.Hover, "--content", Option<string>.some("'</style><script>'"), false)
+  run batch.customProperty(1, StyleState.Base, "--empty", Option<string>.some(""), false)
+  run page.mutate(run batch.take())
+  let first = run page.markup()
+  run Testing.expect(has(first.asSlice(), "--Gap: 8px !important;") && has(first.asSlice(), "--empty: ;"), "markup preserves custom property case, empty tokens and priority")
+  run Testing.expect(has(first.asSlice(), ":hover{") && has(first.asSlice(), "--content:"), "state custom properties create a rule even without ordinary declarations")
+  run Testing.expect(!has(first.asSlice(), "</style><script>"), "custom tokens cannot close the style element")
+  run batch.customProperty(1, StyleState.Base, "--Gap", Option<string>.some("4px; color:red"), false)
+  run page.mutate(run batch.take())
+  let invalid = run page.markup()
+  run Testing.expect(has(invalid.asSlice(), "--Gap: 8px !important;"), "invalid declaration tokens preserve the previous custom property")
+  run batch.customProperty(1, StyleState.Base, "--Gap", Option<string<'static>>.None, false)
+  run batch.push(Mutation.ClearStyle { id: 1, state: StyleState.Hover })
+  run page.mutate(run batch.take())
+  let removed = run page.markup()
+  run Testing.expect(!has(removed.asSlice(), "--Gap:") && !has(removed.asSlice(), "--content:"), "removal and clearing a look remove their custom properties")
+  let mut wireBytes = Bytes.make()
+  let mutation = Mutation.SetCustomProperty { id: 1, state: StyleState.Base, name: run String.copy("--Gap"), value: Option<String>.None, important: false }
+  run Testing.expect(run wire.writeMutation(&mut wireBytes, &mutation), "custom properties travel over the DOM wire")
+  run Testing.expect(wireBytes.asSlice()[0] == wire.OP_CUSTOM_PROPERTY && wireBytes.length() == 17, "the removal wire payload contains the name and no value")
+}
+
+test effect fn customPropertiesReachMarkupAndDomWire() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run customMarkupBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+import ui_protocol.css
+
+struct CustomView { on: bool }
+type CustomNext = Update<CustomView, NoCommand, NoOutput>
+impl Program<Flip, NoCommand> for CustomView {
+  effect fn init() -> CustomNext ! OutOfMemoryError ? &mut Allocator {
+    return CustomNext.of(CustomView { on: false })
+  }
+  effect fn update(mut model: CustomView, message: Flip) -> CustomNext ! OutOfMemoryError ? &mut Allocator {
+    drop message
+    model.on = !model.on
+    return CustomNext.of(move model)
+  }
+  fn view(model: &CustomView, h: &Document<Flip>) -> Node {
+    if model.on {
+      return h.box(&[h.customProperty("--Keep", "8px"), h.customPropertyFor(StyleState.Hover, "--Hover", "2", true)], &[])
+    }
+    return h.box(&[h.style(&[css.height(css.px(10.0))]), h.customProperty("--Keep", "4px"),
+      h.customProperty("--Keep", "8px"), h.customProperty("--Gone", ""),
+      h.customPropertyFor(StyleState.Hover, "--Hover", "1", false)], &[])
+  }
+}
+
+effect fn customDiffBody() -> () ! AssertionError<'static> | TreeError | OutOfMemoryError ? &mut Allocator {
+  let mut page = Html.make()
+  let mut app = run program.make<CustomView, Flip, NoCommand>()
+  run app.start(&mut page, 0.0)
+  run drain(&mut app, &mut page)
+  let first = run page.markup()
+  run Testing.expect(has(first.asSlice(), "--Keep: 8px;") && !has(first.asSlice(), "--Keep: 4px;"), "the last custom declaration in a look wins")
+  run Testing.expect(has(first.asSlice(), "--Gone: ;"), "the custom helper can declare empty tokens")
+  app.send(Flip.Flip)
+  run drain(&mut app, &mut page)
+  let next = run page.markup()
+  run Testing.expect(has(next.asSlice(), "--Keep: 8px;"), "clearing an ordinary style restores unchanged custom properties in the same look")
+  run Testing.expect(!has(next.asSlice(), "--Gone:") && has(next.asSlice(), "--Hover: 2 !important;"), "diff removes omitted custom properties and updates state looks")
+}
+
+test effect fn customPropertyHelpersSurviveStyleResetAndRemoval() -> () ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run customDiffBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}
