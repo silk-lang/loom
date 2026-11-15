@@ -31,7 +31,7 @@
 //!
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
-import lib { WindowContent, runWindowHosted, Loader }
+import lib { WindowContent, runWindowHostedWithSheets, Loader }
 import loom.app { App }
 import loom.program { Program, CommandSet, Hosted, Run, make }
 import loom.runtime { Runtime }
@@ -129,11 +129,14 @@ fn wake(desk: &Arc<Mutex<Desk>>) -> () {
 }
 
 /// The window a program opens: its title and size, its fonts, and its [`Shell`].
+pub import ui_tree.style_assets { StyleAssets }
+
 pub struct Window {
   title: string<'static>,
   width: f64,
   height: f64,
   resources: Batch,
+  stylesheets: StyleAssets,
   files: List<CarriedFile>,
   inspect: bool,
   check: bool,
@@ -162,6 +165,7 @@ impl Window {
       width: width,
       height: height,
       resources: Batch.make(),
+      stylesheets: StyleAssets.make(),
       files: List<CarriedFile>.make(),
       inspect: true,
       check: false,
@@ -170,6 +174,16 @@ impl Window {
       lowestLatency: false,
       desk: run Arc<Mutex<Desk>>.make(run Mutex<Desk>.make(move desk)),
     }
+  }
+
+  /// Installs precompiled application sheets in their supplied order before layout.
+  pub fn withStyleSheets(self: &mut Self, stylesheets: StyleAssets) -> () {
+    self.stylesheets = move stylesheets
+  }
+
+  pub effect fn stylesheet(self: &mut Self, bytes: &[u8]) -> ()
+    ! OutOfMemoryError ? &mut Allocator {
+    run self.stylesheets.append(bytes)
   }
 
   /// The families `css.fontFamilyNumber(family)` stands for, most wanted first:
@@ -719,14 +733,14 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
   }
-  let code = run runWindowHosted<
+  let code = run runWindowHostedWithSheets<
     ShellContent<Hosted<P>, M, Run<C>>,
     Hosted<P>,
     M,
     Run<C>,
     OutOfMemoryError,
     R
-  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content)
+  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content, Intrinsic.replace(window.stylesheets, StyleAssets.make()))
 
   // The platform ends with the window.
   let mut guard = window.desk.get().lock()

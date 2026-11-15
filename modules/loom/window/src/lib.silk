@@ -22,6 +22,7 @@
 //! more frames, reads the window's surface back and compares it with the CPU reference of the
 //! same frame. It returns 0 within tolerance, 1 outside and 2 on an error.
 import ui_scene.scene { Scene }
+import ui_tree.style_assets { StyleAssets }
 
 static if Intrinsic.targetArchitecture() != "wasm32" {
   import font_collection.system as systemFonts
@@ -237,10 +238,32 @@ pub effect fn runWindowHosted<
 ) -> i32
   ! E | WindowError | GpuError | TreeError | AtlasError | GeometryError | OutOfMemoryError
   ? R | &mut Allocator {
+  return run runWindowHostedWithSheets(&mut app, collection, move resources, move options, move inspector, &mut content, StyleAssets.make())
+}
+
+pub effect fn runWindowHostedWithSheets<
+  H: WindowContent<A, M, C>,
+  A: App<M, C>,
+  M,
+  C: Perform<M, E, R>,
+  E,
+  ? R
+>(
+  app: &mut Runtime<A, M, C>,
+  collection: &FontCollection,
+  resources: List<Mutation>,
+  options: RunOptions,
+  inspector: Inspector,
+  content: &mut H,
+  stylesheets: StyleAssets,
+) -> i32
+  ! E | WindowError | GpuError | TreeError | AtlasError | GeometryError | OutOfMemoryError
+  ? R | &mut Allocator {
   let mut client: AppClient<A, M, C, H> = AppClient<A, M, C, H> {
     content: &mut content,
     silkUi: SilkUi.make(),
     loader: Loader.make(),
+    stylesheets: move stylesheets,
   }
   let mut inspector = move inspector
   run inspector.extend(run SilkUi.extension())
@@ -262,6 +285,7 @@ struct AppClient<'a, A, M, C, H> {
   silkUi: SilkUi,
   /// Loads the image and icon URLs the views name.
   loader: Loader,
+  stylesheets: StyleAssets,
 }
 
 impl<'a, A, M, C, H> AppClient<'a, A, M, C, H> {
@@ -481,6 +505,8 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let root = tree.rootId()
+    drop run self.stylesheets.serve(&mut tree, root)
     run frame(&mut state, &mut tree, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)
   }
@@ -494,6 +520,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    drop run self.stylesheets.serve(&mut tree, root)
     run frameRoot(&mut state, &mut tree, root, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)
   }
