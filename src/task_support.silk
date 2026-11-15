@@ -143,7 +143,7 @@ effect fn scanManifests(directory: &Path, url: string, package: string, revision
 pub effect fn repositoryRoot(name: string) -> Path
   ! TaskError | FileError | HostInputError | OutOfMemoryError
   ? &mut HostInput | &mut Allocator | &mut FileSystem {
-  run require(String.startsWith(name, "lib-"), "Expected a lib-prefixed dependency")
+  run require(String.startsWith(name, "lib-") || name == "silkui", "Expected a silk-lang dependency")
   let mut url = run String.copy("https://github.com/silk-lang/")
   run String.append(&mut url, name)
   run String.append(&mut url, ".git")
@@ -237,12 +237,12 @@ pub effect fn build(packagePath: string, release: bool, wasm: bool) -> String
   return run String.copy(pathText(&binary))
 }
 
-/// Builds the package at `packagePath` in the pinned lib-ui checkout (a debug build), such as
+/// Builds the package at `packagePath` in the pinned silkui checkout (a debug build), such as
 /// the inspector CLI the native checks drive.
-pub effect fn libUi(packagePath: string) -> String
+pub effect fn silkuiPackage(packagePath: string) -> String
   ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
   ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
-  let checkout = run repositoryRoot("lib-ui")
+  let checkout = run repositoryRoot("silkui")
   let package = run Path.join(&checkout, packagePath)
   return run build(pathText(&package), false, false)
 }

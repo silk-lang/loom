@@ -7,4 +7,4 @@ kind = "library"
 exports = ["lib", "aria", "equal", "font", "heap", "ui", "document", "css", "keys", "diff", "app", "backend", "program", "shell", "show", "journal", "runtime", "seq", "tasks", "virtual_list", "windows"]
 
 [dependencies]
-ui_protocol = { git = "https://github.com/silk-lang/lib-ui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/protocol", package = "ui-protocol" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "9fe6fc4ed8a1f0186fdfc60d2c5657aeed34c23e", path = "modules/protocol", package = "ui-protocol" }

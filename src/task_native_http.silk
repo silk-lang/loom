@@ -124,8 +124,8 @@ effect fn decoded(target: string) -> String ! TaskError | OutOfMemoryError ? &mu
 effect fn response(fd: i32, target: string, head: bool) -> ()
 ! TaskError | FileError | HostInputError | OutOfMemoryError
 ? &mut HostInput | &mut Allocator | &mut FileSystem {
-  let libUi = run repositoryRoot("lib-ui")
-  let photos = run Path.join(&libUi, "modules/assets/assets/photos")
+  let silkui = run repositoryRoot("silkui")
+  let photos = run Path.join(&silkui, "modules/assets/assets/photos")
   let path = run decoded(target)
   let mut relative = run String.copy(".")
   run String.append(&mut relative, String.view(&path))
