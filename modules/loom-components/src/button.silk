@@ -2,11 +2,11 @@
 //! disabled state. A button is a focusable box with role button; it sends its message when
 //! clicked, or pressed with Enter or Space while focused (the tree turns those keys into
 //! clicks).
-import ui_tree.css
-import ui_tree.css { px, Keyword }
+import ui_protocol.css
+import ui_protocol.css { px, Keyword }
 import theme { Theme, border, padding2, focusRing, clear }
-import ui_app.ui { Ui }
-import ui_tree.mutation {
+import loom.ui { Ui }
+import ui_protocol.mutation {
   Align,
   Cursor,
   WhiteSpace,

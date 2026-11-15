@@ -1,10 +1,10 @@
-# ui-app-inspect
+# loom-inspect
 
 silk-ui's inspector extension, `silk-ui`: what a silk-ui program adds to the inspector
 ([ui-inspect-server](../../inspect/server)), which knows the tree and nothing else. It is
 registered and served through the inspector's extension API
 ([Extensions](../../inspect/server/README.md#extensions)), the way any other framework would add
-its own; ui-app itself knows no inspector, and the inspector, its CLI, its MCP bridge and the
+its own; loom itself knows no inspector, and the inspector, its CLI, its MCP bridge and the
 devtools know nothing of silk-ui.
 
 | Name | Members | What |
@@ -27,7 +27,7 @@ run silkUi.record(&mut runtime)                  // the journal's new steps, cou
 run inspector.serveExtension(ID, &mut silkUi)    // answer, push the topic, render the panel
 ```
 
-`ui-app-window` does exactly this for every program it runs.
+`loom-window` does exactly this for every program it runs.
 
 ## The Program panel
 
@@ -42,7 +42,7 @@ and look (the devtools replay it, see
 
 ## Tests
 
-- `modules/app/window/tests` (`silk_ui.silk`): a counter program and the extension over a
+- `modules/loom/window/tests` (`silk_ui.silk`): a counter program and the extension over a
   session in the same process: hello lists it, the inspector itself has no `messages`, a request
   waits until the extension is served and then gets the messages, the topic is pushed, a model
   diff, the program and an unknown step; the Program panel's view runs only while subscribed,

@@ -1,5 +1,5 @@
 //! Devtools in the app's own process: the devtools app runs in the app's tree, on a root of its
-//! own, beside whatever drives the rest of the tree (a ui-app program, or a client that applies
+//! own, beside whatever drives the rest of the tree (a loom program, or a client that applies
 //! mutations itself). It is a window host [`Companion`]: the host hands it the input, records
 //! and frames of its root, and every key first.
 //!
@@ -30,9 +30,10 @@ import devtools { Devtools, Message, Command }
 import theme { Look, UI_FAMILIES, MONO_FAMILIES, LINE, rgb }
 import link { Link, Requests }
 import remote { ViewHost, isViewBatch }
-import ui_app.app { Perform }
-import ui_app.runtime { Runtime, pump, drain, tick, frameRoot }
-import ui_app.backend { Backend, Measured }
+import loom.app { Perform }
+import loom.runtime { Runtime, pump, drain, tick }
+import loom_tree.lib { frameRoot }
+import loom.backend { Backend, Measured }
 import ui_tree.css
 import ui_tree.css { px, percent, Declaration }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, Mutation, StyleState, BorderStyle, Batch }

@@ -4,8 +4,8 @@
 //! the panel open, which draws them with its own fonts and look, and the client's event records
 //! for its nodes come back. Nothing of it runs while no client looks.
 import program { ProgramLog, DiffRow, KEPT, ADDED, REMOVED, diffRows }
-import ui_app.css
-import ui_app.css {
+import loom.css
+import loom.css {
   px,
   percent,
   Keyword,
@@ -16,8 +16,8 @@ import ui_app.css {
   TextAlign,
   WhiteSpace
 }
-import ui_app.backend { Backend, Measured, TreeError }
-import ui_app.lib { Attr, Document, Heap, Node, NoCommand, NoOutput, Program, Role, Update }
+import loom.backend { Backend, Measured, TreeError }
+import loom.lib { Attr, Document, Heap, Node, NoCommand, NoOutput, Program, Role, Update }
 import ui_inspect_server.extension { View }
 import ui_inspect_server.remote { VIEW_FONT_UI, VIEW_FONT_MONO }
 import ui_protocol.mutation { Mutation }

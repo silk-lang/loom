@@ -1,10 +1,10 @@
 //! The counter: buttons, a number, key bindings and a timer subscription. No commands.
-import ui_app.font { Fonts }
-import ui_app.css
-import ui_app.css { px, Align }
+import loom.font { Fonts }
+import loom.css
+import loom.css { px, Align }
 import look { SANS, surfaceLook, press, rgb }
-import ui_app.lib { Document, Node, NoCommand, NoOutput, Program, Subscriptions, Update }
-import ui_app.keys { MOD_CONTROL }
+import loom.lib { Document, Node, NoCommand, NoOutput, Program, Subscriptions, Update }
+import loom.keys { MOD_CONTROL }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 
 pub struct Counter {

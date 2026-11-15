@@ -1,9 +1,9 @@
 //! The colors and the button look the examples share.
-import ui_app.font { Font }
-import ui_app.heap { allocate }
-import ui_app.css
-import ui_app.css { px, BorderStyle }
-import ui_app.lib { Attr, Document, Node, Ui }
+import loom.font { Font }
+import loom.heap { allocate }
+import loom.css
+import loom.css { px, BorderStyle }
+import loom.lib { Attr, Document, Node, Ui }
 import silk.color.rgba { Rgba }
 import silk.geometry.corners { Corners }
 import silk.num.u32

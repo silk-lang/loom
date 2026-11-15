@@ -1,4 +1,4 @@
-//! [`Runtime`]: runs an [`App`] against a `UiTree`.
+//! [`Runtime`]: runs an [`App`] against a [`Backend`].
 //!
 //! The loop is one event at a time: a record from the tree is dispatched (the view runs again
 //! along the record's path and calls the handlers there), the messages update the model, their
@@ -37,13 +37,10 @@ import ui_protocol.mutation {
   LISTEN_KEY_DOWN
 }
 import ui_protocol.record { Event, EventKind }
-import ui_tree.node { FrameInput }
 import ui_protocol.input { Input, MOD_ALT, MOD_CONTROL, MOD_META, MOD_SHIFT }
-import ui_protocol.options { VirtualItem, RootOptions }
+import ui_protocol.options { VirtualItem, VirtualRange, RootOptions }
 import ui_protocol.root { RootEvent, RootEventKind }
-import ui_tree.virtual_list { VirtualRange }
-import ui_tree.engine { UiTree, TreeError }
-import backend { Backend, Measured }
+import backend { Backend, Measured, TreeError }
 import silk.collections.list { List }
 import silk.collections.hash_map { HashMap }
 import silk.collections.hash { Hash }
@@ -1442,25 +1439,6 @@ pub effect fn post<A: App<M, C>, M, C: Perform<M, E, R>, E, B: Backend, ? R>(
   }
 }
 
-/// Feeds one input to the tree the way a browser does: the handlers of the input's own record
-/// run first, and the tree's default action (focus, scrolling, what a key does) runs only if
-/// none of them prevented it with `Reply.Prevent`. Hosts call this in place of
-/// `tree.dispatch` followed by `pump`. Returns whether any record was handled.
-pub effect fn feed<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
-  runtime: &mut Runtime<A, M, C>,
-  tree: &mut UiTree<'_>,
-  input: Input,
-) -> bool
-  ! E | TreeError | OutOfMemoryError
-  ? R | &mut Allocator {
-  run tree.begin(&input)
-  let first = run pump(&mut runtime, &mut tree)
-  let prevented = runtime.takePrevented()
-  run tree.finish(move input, prevented)
-  let second = run pump(&mut runtime, &mut tree)
-  return first || second
-}
-
 /// Takes the tree's event records and handles them one at a time: dispatch, update, render.
 /// Returns whether any record was handled.
 pub effect fn pump<A: App<M, C>, M, C: Perform<M, E, R>, E, B: Backend, ? R>(
@@ -1610,45 +1588,6 @@ fn same(a: &[u8], b: &[u8]) -> bool {
     i = i + 1
   }
   return true
-}
-
-/// Lays out and paints an app, including variable-height list measurements.
-///
-/// # Details
-///
-/// Processes layout events and repeats layout when handlers or virtual lists change the tree.
-/// Stops after eight passes so a cyclic layout handler cannot prevent presentation.
-/// If `tree.needsFrame()` remains true, the host must schedule another frame.
-/// Native `ui-app-window` hosts call this automatically.
-pub effect fn frame<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
-  runtime: &mut Runtime<A, M, C>,
-  tree: &mut UiTree<'_>,
-  input: FrameInput,
-) -> ()
-  ! E | TreeError | OutOfMemoryError
-  ? R | &mut Allocator {
-  let root = runtime.root
-  run frameRoot(&mut runtime, &mut tree, root, input)
-}
-
-/// [`frame`] for root `root`: the first window's, or a declared window's in its own window.
-pub effect fn frameRoot<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
-  runtime: &mut Runtime<A, M, C>,
-  tree: &mut UiTree<'_>,
-  root: u32,
-  input: FrameInput,
-) -> ()
-  ! E | TreeError | OutOfMemoryError
-  ? R | &mut Allocator {
-  let mut pass: usize = 0
-  while pass < 8 {
-    run tree.frameRoot(root, input)
-    drop run pump(&mut runtime, &mut tree)
-    if !tree.needsFrameOf(root) {
-      return ()
-    }
-    pass = pass + 1
-  }
 }
 
 /// The style of a root box: a column filling its viewport.

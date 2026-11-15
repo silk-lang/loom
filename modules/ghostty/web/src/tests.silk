@@ -1,9 +1,9 @@
 //! The page's program on a tree, natively: `silk test --manifest-path modules/ghostty/web/silk.toml --root src/tests.silk`.
 import shell { WebShell, Message }
-import ui_app.lib { NoCommand }
-import ui_app.program as program
-import ui_app.runtime { pump }
-import ui_app.harness { press, typeText, snapshot }
+import loom.lib { NoCommand }
+import loom.program as program
+import loom.runtime { pump }
+import loom_tree.harness { press, typeText, snapshot }
 import ui_tree.legacy { UiTree, TreeError, FrameInput }
 import ui_fixtures.fixtures as fixtures
 import silk.core.effect { Effect }

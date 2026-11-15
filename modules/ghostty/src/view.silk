@@ -1,5 +1,5 @@
 //! A terminal on the UI tree: [`TerminalView`] owns a Ghostty terminal and draws its screen
-//! with ordinary nodes, so it works on every host the tree and ui-app run on.
+//! with ordinary nodes, so it works on every host the tree and loom run on.
 //!
 //! It behaves as a terminal on the web would: a press and drag selects text (two clicks a
 //! word, three a line, Alt-drag a block), the wheel scrolls the scrollback, a click focuses
@@ -28,12 +28,12 @@ import ghostty_vt.terminal {
   STRIKETHROUGH,
   UNDERLINE_MASK
 }
-import ui_app.lib { Document, Node, Reply, Event, EventKind, Cursor as PointerCursor, Heap, Live }
+import loom.lib { Document, Node, Reply, Event, EventKind, Cursor as PointerCursor, Heap, Live }
 import speech { Speech }
-import ui_app.font { Font }
-import ui_app.css
-import ui_app.css { px, Position, Overflow, WhiteSpace, FontStyle, Keyword, BorderStyle, BoxSizing }
-import ui_app.keys { MOD_SHIFT, MOD_CONTROL, MOD_ALT, MOD_META, BUTTON_PRIMARY, BUTTON_AUXILIARY, BUTTON_SECONDARY }
+import loom.font { Font }
+import loom.css
+import loom.css { px, Position, Overflow, WhiteSpace, FontStyle, Keyword, BorderStyle, BoxSizing }
+import loom.keys { MOD_SHIFT, MOD_CONTROL, MOD_ALT, MOD_META, BUTTON_PRIMARY, BUTTON_AUXILIARY, BUTTON_SECONDARY }
 import silk.collections.bytes { Bytes }
 import silk.collections.list { List }
 import silk.collections.slice { Slice }

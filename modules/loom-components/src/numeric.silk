@@ -1,6 +1,6 @@
 //! Numeric editing preserves incomplete drafts and separates edits from committed numbers.
-import ui_app.ui { Ui, Reply }
-import ui_tree.mutation { Role }
+import loom.ui { Ui, Reply }
+import ui_protocol.mutation { Role }
 import silk.core.option { Option }
 import silk.text.string { String }
 import silk.num.f32

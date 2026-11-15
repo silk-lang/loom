@@ -1,4 +1,4 @@
-// The browser side of ui-app-dom: applies the mutation batches a program sends to real DOM
+// The browser side of loom-dom: applies the mutation batches a program sends to real DOM
 // nodes, and sends the events the document hears back as records. The byte layouts are the
 // ones in `src/wire.silk`; the call codes are the ones in `src/page.silk`.
 

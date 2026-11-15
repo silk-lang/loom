@@ -1,6 +1,6 @@
 //! The `silk-ui` inspector extension: what a silk-ui program adds to the inspector, which knows
 //! only the tree. It is registered and served the way any framework's would be
-//! (`Inspector.extend`, `Inspector.serveExtension`); the window host (`ui-app-window`) does both
+//! (`Inspector.extend`, `Inspector.serveExtension`); the window host (`loom-window`) does both
 //! for every program it runs.
 //!
 //! | Name | What |
@@ -18,12 +18,12 @@
 //! once something asks for it.
 import program { ProgramLog, ProgramStep, ProgramStats }
 import panel { ProgramPanel, PanelMessage, ViewBackend }
-import ui_app.app { App }
-import ui_app.journal { Step }
-import ui_app.runtime { Runtime, pump }
-import ui_app.backend { TreeError }
-import ui_app.app { NoCommand }
-import ui_app.program { Hosted, Run, make }
+import loom.app { App }
+import loom.journal { Step }
+import loom.runtime { Runtime, pump }
+import loom.backend { TreeError }
+import loom.app { NoCommand }
+import loom.program { Hosted, Run, make }
 import silk.core.effect { Effect }
 import silk.core.option { Option }
 import ui_inspect_server.extension { Extension, ExtensionHandler, News, View }

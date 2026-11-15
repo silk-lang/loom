@@ -1,18 +1,18 @@
-# ui-components
+# loom-components
 
-Components for [ui-app](../app) views: buttons, checkboxes and switches, a slider, text fields
+Components for [loom](../loom) views: buttons, checkboxes and switches, a slider, text fields
 and text areas, lists, select lists and virtual lists, scroll views, tabs, menus and selects,
 dialogs, popovers and tooltips, plus layout and text helpers and a theme.
 
 Packages:
 
-- `modules/components` (`ui-components`): the components, one module per family (`theme`,
+- `modules/loom-components` (`loom-components`): the components, one module per family (`theme`,
   `layout`, `button`, `choice`, `slider`, `field`, `list`, `tabs`, `menu`, `dialog`,
   `popover`), all re-exported from `lib`.
-- `modules/components/gallery`: an app with every component, its state in one model.
-- `modules/components/tests`: one scripted test per component, a keyboard-only test, and describe and
+- `modules/loom-components/gallery`: an app with every component, its state in one model.
+- `modules/loom-components/tests`: one scripted test per component, a keyboard-only test, and describe and
   PNG goldens of the gallery.
-- `modules/components/demo`: the gallery in a native window (`silk task native demo modules/components/demo`,
+- `modules/loom-components/demo`: the gallery in a native window (`silk task native demo modules/loom-components/demo`,
   with `-- check` for CI).
 
 ## Using them
@@ -45,7 +45,7 @@ textField(
 )
 ```
 
-As everywhere in ui-app, handlers are lambdas the view calls during dispatch, never stored, and
+As everywhere in loom, handlers are lambdas the view calls during dispatch, never stored, and
 the model owns the values. What a browser keeps in the element stays in the tree: focus, hover,
 scroll offsets, the caret, the selection and input method state.
 
@@ -98,7 +98,7 @@ Popups (menus, selects, popovers, dialogs, tooltips) go in the framework's overl
 
 ## What the framework gained for them
 
-ui-app grew a few general pieces (see its README): `ui.overlay(key, body)`, `ui.anchor(key)`
+loom grew a few general pieces (see its README): `ui.overlay(key, body)`, `ui.anchor(key)`
 with `ui.anchorRect` and `ui.anchorPressed`, `ui.takeFocus()` and `ui.reveal()`, the state
 attributes `checked`, `selected` and `expanded`, the input attributes `placeholder`,
 `multiline` and `readOnly`, `ui.decimal`, `ui.onEnter`, and `onInput` handing the handler an

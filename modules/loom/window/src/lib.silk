@@ -1,4 +1,4 @@
-//! Runs a ui-app [`Runtime`] in a native window: modules/platform/window for the window and input,
+//! Runs a loom [`Runtime`] in a native window: modules/platform/window for the window and input,
 //! ui-tree-window to turn window events into tree input, and ui_renderer on WebGPU (Dawn) for
 //! the frames.
 //!
@@ -10,7 +10,7 @@
 //! [`runWindowWith`]: requests are served from the loop, input they dispatch is pumped to the app
 //! like window input, the records the app takes go to the inspector's event log, and the
 //! highlight is drawn over the frame. The program itself is the `silk-ui` extension's to report
-//! (ui-app-inspect): this host registers it with the inspector and serves it from the loop, as
+//! (loom-inspect): this host registers it with the inspector and serves it from the loop, as
 //! any framework would its own.
 //!
 //! Every app run this way can also show the devtools in its own process, in a window of their
@@ -29,12 +29,13 @@ static if Intrinsic.targetArchitecture() != "wasm32" {
   import silk.system.host_input { HostInput }
 }
 
-import ui_app.app { App, Perform }
-import ui_app.runtime { Runtime, pump, tick, resize, frame, frameRoot }
-import ui_app.harness { click, press }
+import loom.app { App, Perform }
+import loom.runtime { Runtime, pump, tick, resize }
+import loom_tree.lib { frame, frameRoot }
+import loom_tree.harness { click, press }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, Mutation }
 import ui_inspect_server.lib { Inspector }
-import ui_app_inspect.lib { SilkUi, ID as SILK_UI }
+import loom_inspect.lib { SilkUi, ID as SILK_UI }
 import ui_devtools.embedded { EmbeddedDevtools }
 import font_collection.lib { FontCollection }
 import atlas.atlas { AtlasError }

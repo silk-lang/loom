@@ -7,10 +7,11 @@
 //! the view the app renders, replayed in the devtools' root.
 import ui_devtools.embedded { EmbeddedDevtools, Placement, DEVTOOLS_ROOT, FIRST_ID, dockArea }
 import ui_devtools.lib { Devtools, Message, Command, NO_PARENT, REMOTE_FIRST }
-import ui_app_inspect.lib { SilkUi, ID as SILK_UI }
-import ui_app_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
-import ui_app_examples.look { SANS }
-import ui_app.runtime { Runtime, frame, pump }
+import loom_inspect.lib { SilkUi, ID as SILK_UI }
+import loom_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
+import loom_examples.look { SANS }
+import loom.runtime { Runtime, pump }
+import loom_tree.lib { frame }
 import ui_inspect.query { Query, queryFirst }
 import ui_inspect_server.lib { Inspector, Channel, MemoryChannel }
 import ui_tree_window.companion { Dock, dockTarget }

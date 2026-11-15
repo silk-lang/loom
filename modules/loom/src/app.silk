@@ -64,7 +64,7 @@ pub struct NoCommand {}
 
 impl<M> Perform<M, never ? never> for NoCommand {
   effect fn perform(self: Self) -> M {
-    return Intrinsic.trap("ui-app: NoCommand is never performed")
+    return Intrinsic.trap("loom: NoCommand is never performed")
   }
 }
 

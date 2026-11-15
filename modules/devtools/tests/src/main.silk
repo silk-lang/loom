@@ -21,8 +21,8 @@ import ui_devtools.lib {
   UI_FAMILIES,
   MONO_FAMILIES
 }
-import ui_app.runtime { Runtime, drain, pump }
-import ui_app.harness { click, hover, typeText }
+import loom.runtime { Runtime, drain, pump }
+import loom_tree.harness { click, hover, typeText }
 import ui_inspect.query { Query, queryFirst }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy {

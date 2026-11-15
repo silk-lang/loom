@@ -3,13 +3,13 @@
 //! view, a request to close it reaches the model, a model change closes it, and a backend that
 //! shows one root (a `UiTree` told so, the server-side document) answers `Failed` while the
 //! first window keeps working.
-import ui_app_examples.mirror { Mirror, Message }
-import ui_app_examples.look { SANS }
-import ui_app.app { NoCommand }
-import ui_app.program as program
-import ui_app.harness { click, clickIn }
-import ui_app.runtime { pump, drain }
-import ui_app_dom.html { Html }
+import loom_examples.mirror { Mirror, Message }
+import loom_examples.look { SANS }
+import loom.app { NoCommand }
+import loom.program as program
+import loom_tree.harness { click, clickIn }
+import loom.runtime { pump, drain }
+import loom_dom.html { Html }
 import silk.collections.bytes { Bytes }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.inspect { findAll }

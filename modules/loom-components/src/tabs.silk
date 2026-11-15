@@ -1,12 +1,12 @@
 //! [`tabs`]: a row of tabs and the panel of the selected one. The tab list is one tab stop:
 //! focused, Left and Right (and Home and End) select the neighboring tab; a click selects a
 //! tab. Both send `onSelect(index)`.
-import ui_tree.css
-import ui_tree.css { px }
+import ui_protocol.css
+import ui_protocol.css { px }
 import theme { Theme, focusRing, padding2, edges }
-import ui_app.ui { Ui, Reply, textKey }
-import ui_tree.mutation { Position, Role, Cursor }
-import ui_tree.node { Event }
+import loom.ui { Ui, Reply, textKey }
+import ui_protocol.mutation { Position, Role, Cursor }
+import ui_protocol.record { Event }
 import silk.core.option { Option }
 import silk.num.usize
 import silk.text.string { String }

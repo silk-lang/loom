@@ -4,8 +4,8 @@
 //! the wheel or Shift+PageUp, copy and paste with Cmd+C / Cmd+V on macOS or Ctrl+Shift+C /
 //! Ctrl+Shift+V elsewhere. Resize the window and the shell's grid follows.
 import app { TerminalApp, Message, Command }
-import ui_app.lib { Shell }
-import ui_app_window.program { Launched, Window, failed, launch, show, systemFonts }
+import loom.lib { Shell }
+import loom_window.program { Launched, Window, failed, launch, show, systemFonts }
 import silk.core.effect { Effect }
 import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }

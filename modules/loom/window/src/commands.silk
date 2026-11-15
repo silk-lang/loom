@@ -4,8 +4,8 @@
 //! be Transferable and own process-heap storage. At most four jobs execute concurrently.
 import lib { WindowContent }
 import background { Background }
-import ui_app.app { App, Perform }
-import ui_app.runtime { Runtime, drain }
+import loom.app { App, Perform }
+import loom.runtime { Runtime, drain }
 import ui_tree.legacy { UiTree, TreeError }
 import window.types { WindowError }
 import silk.concurrency.thread { Transferable }

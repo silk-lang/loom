@@ -1,11 +1,11 @@
 //! Two windows of one model: the first window counts and opens a second one, which shows the
 //! same count and changes it too. The second window closes from its own close button, from
 //! its Close button, or from the button that opened it. No commands.
-import ui_app.font { Fonts }
-import ui_app.css
-import ui_app.css { px, Align }
+import loom.font { Fonts }
+import loom.css
+import loom.css { px, Align }
 import look { SANS, surfaceLook, press }
-import ui_app.lib {
+import loom.lib {
   Document,
   Node,
   NoCommand,

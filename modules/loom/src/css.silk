@@ -1,6 +1,6 @@
 //! Styles: the declarations a view passes to `h.style`, and the values they take.
 //!
-//! `import ui_app.css` and write `css.padding(px(8.0))`.
+//! `import loom.css` and write `css.padding(px(8.0))`.
 import font { Font }
 import heap { allocate }
 import ui_protocol.css as protocolCss

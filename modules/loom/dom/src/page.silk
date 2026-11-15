@@ -17,9 +17,9 @@
 //! }
 //! ```
 import dom { Dom }
-import ui_app.backend { TreeError }
-import ui_app.program { Program, CommandSet, Hosted, Run, make }
-import ui_app.runtime { Runtime, drain, settle, navigate, post, pump, tick, resize }
+import loom.backend { TreeError }
+import loom.program { Program, CommandSet, Hosted, Run, make }
+import loom.runtime { Runtime, drain, settle, navigate, post, pump, tick, resize }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.mem.box { Box }
 import silk.mem.pointer { Pointer }

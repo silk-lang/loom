@@ -2,15 +2,15 @@
 //! compares the tree's `describe` snapshot (exactly) and its CPU drawing (each channel may differ
 //! by 2) with `<scene>.txt` and `<scene>.png` in the goldens directory.
 //!
-//! `ui-app-tests <goldens directory> [--update]`, from the repository root. With `--update` it
+//! `loom-tests <goldens directory> [--update]`, from the repository root. With `--update` it
 //! writes the files instead. Exits 0 when everything matches, 1 on a mismatch, 2 on an error.
-import ui_app_examples.counter { Counter, Message as CounterMessage }
-import ui_app_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
-import ui_app_examples.look { SANS }
-import ui_app.app { NoCommand }
-import ui_app.program as program
-import ui_app.runtime { Runtime }
-import ui_app.harness { click }
+import loom_examples.counter { Counter, Message as CounterMessage }
+import loom_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
+import loom_examples.look { SANS }
+import loom.app { NoCommand }
+import loom.program as program
+import loom.runtime { Runtime }
+import loom_tree.harness { click }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy {
   UiTree,
@@ -220,7 +220,7 @@ effect fn process() -> i32
   ? &mut HostInput | &mut Allocator {
   let count = run HostInput.argumentCount()
   if count < 2 {
-    run say("usage: ui-app-tests <goldens directory> [--update]\n")
+    run say("usage: loom-tests <goldens directory> [--update]\n")
     return 2
   }
   let update = count > 2
@@ -249,7 +249,7 @@ effect fn process() -> i32
 effect fn failed<E>(error: E) -> i32
   ! WriterError {
   drop error
-  run say("ui-app-tests: running a scene, drawing, file access or PNG coding failed\n")
+  run say("loom-tests: running a scene, drawing, file access or PNG coding failed\n")
   return 2
 }
 

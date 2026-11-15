@@ -1,8 +1,8 @@
 //! Accessibility attributes in the document backend's markup, by their ARIA names.
-import ui_app_dom.html { Html }
-import ui_app.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update }
-import ui_app.program as program
-import ui_app.backend { Backend, TreeError }
+import loom_dom.html { Html }
+import loom.lib { Document, drain, NoCommand, Node, NoOutput, Program, Update }
+import loom.program as program
+import loom.backend { Backend, TreeError }
 import ui_protocol.mutation { Mutation, Attribute, NodeKind, Role, TriState, Live, FIRST_ROOT }
 import ui_protocol.options { RootOptions }
 import silk.collections.bytes { Bytes }

@@ -2,8 +2,8 @@
 //! go into the devtools' tree, and a click on a replayed node goes back to the app.
 import inspected { Inspected }
 import ui_devtools.lib { Devtools, Message, Command, Link, ViewHost }
-import ui_app.runtime { Runtime, drain, pump }
-import ui_app.ui { ROOT_ID }
+import loom.runtime { Runtime, drain, pump }
+import loom.ui { ROOT_ID }
 import ui_inspect.query { Query, queryFirst }
 import ui_inspect.synth as synth
 import ui_tree.legacy { UiTree, TreeError, FrameInput, Input, Event, NONE }

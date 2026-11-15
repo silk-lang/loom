@@ -4,7 +4,7 @@
 import app { Session, Message, Command }
 import pty { Pty, PtyError }
 import ui_ghostty.view { TerminalMessage }
-import ui_app.keys { MOD_CONTROL }
+import loom.keys { MOD_CONTROL }
 import silk.core.effect { Effect }
 import silk.core.result { Result }
 import silk.geometry.rect { Rect }

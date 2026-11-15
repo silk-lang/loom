@@ -11,9 +11,9 @@
 //! The markup goes inside the element `mount` gets as its root.
 import grid_css { writeGrid }
 import wire { roleName, cursorName }
-import ui_app.backend { Backend, Measured, TreeError }
-import ui_app.program { Program, CommandSet, Hosted, Run, make }
-import ui_app.runtime { drain, settle }
+import loom.backend { Backend, Measured, TreeError }
+import loom.program { Program, CommandSet, Hosted, Run, make }
+import loom.runtime { drain, settle }
 import ui_protocol.css
 import ui_protocol.css { Declaration, writeDeclaration }
 import ui_protocol.mutation {

@@ -1,9 +1,9 @@
 [package]
-name = "ui-app-examples"
+name = "loom-examples"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 kind = "library"
 exports = ["lib", "counter", "todo", "look", "notes", "mirror"]
 
 [dependencies]
-ui_app = { path = "..", package = "ui-app" }
+loom = { path = "..", package = "loom" }

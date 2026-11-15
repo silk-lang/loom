@@ -32,10 +32,10 @@
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
 import lib { WindowContent, runWindowHosted, Loader }
-import ui_app.app { App }
-import ui_app.program { Program, CommandSet, Hosted, Run, make }
-import ui_app.runtime { Runtime }
-import ui_app.shell {
+import loom.app { App }
+import loom.program { Program, CommandSet, Hosted, Run, make }
+import loom.runtime { Runtime }
+import loom.shell {
   Shell,
   Menu,
   MenuEntry,
@@ -47,7 +47,7 @@ import ui_app.shell {
   PORT_FOCUS,
   PORT_MENU
 }
-import ui_app.keys { MOD_SHIFT, MOD_CONTROL, MOD_ALT, MOD_META }
+import loom.keys { MOD_SHIFT, MOD_CONTROL, MOD_ALT, MOD_META }
 import ui_tree.legacy { UiTree, TreeError, Batch }
 import ui_tree_window.host { RunOptions, startInspector, StartedGpu }
 import ui_tree_window.platform_thread { HostPlatform, Nudge, launch as launchThread }
@@ -203,7 +203,7 @@ impl Window {
 
   /// Checks the window instead of taking input: clicks the node named `click`, expects a
   /// node named `expect`, and compares the frame with its CPU reference (see
-  /// `ui_app_window.lib`).
+  /// `loom_window.lib`).
   pub fn checking(self: &mut Self, click: string<'static>, expect: string<'static>) -> () {
     self.check = true
     self.checkClick = click

@@ -1,5 +1,5 @@
 [package]
-name = "ui-app-inspect"
+name = "loom-inspect"
 description = "The silk-ui inspector extension: a program's messages, its model after each, and the Program panel"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
@@ -7,7 +7,7 @@ kind = "library"
 exports = ["lib", "program", "panel", "extension"]
 
 [dependencies]
-ui_app = { path = "..", package = "ui-app" }
+loom = { path = "..", package = "loom" }
 ui_tree = { path = "../../tree", package = "ui-tree" }
 ui_protocol = { path = "../../protocol", package = "ui-protocol" }
 ui_inspect_server = { path = "../../inspect/server", package = "ui-inspect-server" }

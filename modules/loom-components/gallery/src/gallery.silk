@@ -1,10 +1,10 @@
 //! The gallery: one app with every component, its state in one model. The tests drive it
-//! through the tree like a user (`modules/components/tests`), and `modules/components/demo` runs it in a
+//! through the tree like a user (`modules/loom-components/tests`), and `modules/loom-components/demo` runs it in a
 //! window.
-import ui_app.font { Font, Fonts }
+import loom.font { Font, Fonts }
 import ui_tree.css
 import ui_tree.css { px, number }
-import ui_components.lib {
+import loom_components.lib {
   Theme,
   Tone,
   SliderRange,
@@ -38,8 +38,8 @@ import ui_components.lib {
   popover,
   tooltip
 }
-import ui_app.app { App, Context, NoCommand }
-import ui_app.ui { Ui, textKey }
+import loom.app { App, Context, NoCommand }
+import loom.ui { Ui, textKey }
 import ui_tree.mutation { Align, FlexWrap }
 import silk.core.option { Option }
 import silk.num.u64
@@ -480,7 +480,7 @@ impl Gallery {
                     ui.text("About this gallery")
                   },
                 )
-                caption(&mut ui, &theme, "Every component of ui-components.")
+                caption(&mut ui, &theme, "Every component of loom-components.")
                 button(&mut ui, &theme, "Close", || Message.Info { open: false })
               },
             )

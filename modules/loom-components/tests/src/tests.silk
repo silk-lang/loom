@@ -1,10 +1,10 @@
-//! ui-components tests: the gallery driven through the real tree with synthetic input, one
+//! loom-components tests: the gallery driven through the real tree with synthetic input, one
 //! test per component, and one that uses the keyboard only. Run from the repository root.
 import ui_gallery.lib { Gallery, Message }
-import ui_components.lib { NO_SELECTION, visibleRows, snap, valueAt }
-import ui_app.app { NoCommand }
-import ui_app.runtime { Runtime }
-import ui_app.harness {
+import loom_components.lib { NO_SELECTION, visibleRows, snap, valueAt }
+import loom.app { NoCommand }
+import loom.runtime { Runtime }
+import loom_tree.harness {
   click,
   clickAt,
   clickRole,
@@ -740,8 +740,8 @@ test effect fn keyboardOnlyReachesEveryComponent() -> ()
   run keyboardBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-import ui_components.numeric { parse, commit, NumberOptions, NumberEvent }
-import ui_components.color { withChannel }
+import loom_components.numeric { parse, commit, NumberOptions, NumberEvent }
+import loom_components.color { withChannel }
 
 test effect fn numericDraftsAndColorChannels() -> ()
   ! AssertionError<'static> {

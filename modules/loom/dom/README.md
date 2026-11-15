@@ -1,6 +1,6 @@
-# ui-app-dom
+# loom-dom
 
-The document backend of ui-app: the same `Program` that runs on the tree renderer, shown with
+The document backend of loom: the same `Program` that runs on the tree renderer, shown with
 real DOM nodes, or written out as markup. The browser does layout, text, focus and scrolling.
 
 - `src/dom.silk`: `Dom`, a `Backend`. Each render's mutations are encoded into one buffer
@@ -105,7 +105,7 @@ docs/build.sh --base /docs   # for a site under /docs
 - An image or icon a program defines from bytes becomes a blob URL; a server render shows
   only the ones it was given an address for.
 
-## Gaps left in ui-app
+## Gaps left in loom
 
 - No command suspends: slow work comes back through a port.
 - A `Submodel`'s view sees only its own model: shared context such as a theme is copied into
@@ -114,4 +114,4 @@ docs/build.sh --base /docs   # for a site under /docs
 - `impl Program for Model` must be in the model's module, so a model and its messages cannot
   be split from `update` and `view` without a wrapper type.
 - The generic runtime calls need their type arguments written out.
-- ui-app still depends on ui-tree, so a DOM program links it too.
+- loom still depends on ui-tree, so a DOM program links it too.

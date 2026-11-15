@@ -2,13 +2,13 @@
 //! `input` node. The tree edits the text (caret, selection, clipboard, undo, input methods);
 //! the model owns the value: each edit sends `onChange(newValue)` and the view passes the value
 //! back, so the input is controlled without fighting the caret.
-import ui_app.heap { allocate }
-import ui_tree.css
-import ui_tree.css { px }
+import loom.heap { allocate }
+import ui_protocol.css
+import ui_protocol.css { px }
 import theme { Theme, border, padding2 }
 import layout { caption }
-import ui_app.ui { Ui }
-import ui_tree.mutation { BoxShadow, BoxSizing }
+import loom.ui { Ui }
+import ui_protocol.mutation { BoxShadow, BoxSizing }
 import silk.text.string { String }
 import silk.num.u32
 

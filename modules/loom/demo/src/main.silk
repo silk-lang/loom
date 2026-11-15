@@ -1,6 +1,6 @@
 //! The todo example in a native window.
 //!
-//!   ui-app-demo [--check]
+//!   loom-demo [--check]
 //!
 //! Type a title and press Enter or Add to add an item (Ctrl+N adds one too), click the boxes to
 //! toggle items, Delete to remove one, and the filters to show some. Tab and Shift+Tab move focus; Enter and Space press the focused
@@ -12,10 +12,10 @@
 //! `--check` ignores real input: it clicks Add and presses Tab, then compares the window's
 //! surface with the CPU reference of the same frame. Exit code 0 within tolerance, 1 outside,
 //! 2 on an error.
-import ui_app_examples.todo { Todo, Message, Command, Store }
-import ui_app_examples.look { SANS }
-import ui_app.runtime { Runtime }
-import ui_app_window.lib { Launched, RunOptions, launch, runWindowWith, startInspector, StartedGpu }
+import loom_examples.todo { Todo, Message, Command, Store }
+import loom_examples.look { SANS }
+import loom.runtime { Runtime }
+import loom_window.lib { Launched, RunOptions, launch, runWindowWith, startInspector, StartedGpu }
 import ui_inspect_server.lib { InspectorOptions }
 import ui_fixtures.fixtures as fixtures
 import ui_tree.legacy { TreeError, Batch }
@@ -101,18 +101,18 @@ effect fn program(check: bool, platform: Option<Launched>) -> i32
 
 effect fn windowFailed(error: WindowError) -> i32 {
   drop error
-  StderrWriter.print("ui-app-demo: could not open a window (no display server?)\n", &())
+  StderrWriter.print("loom-demo: could not open a window (no display server?)\n", &())
   return 2
 }
 
 effect fn gpuFailed(error: GpuError) -> i32 {
-  StderrWriter.print("ui-app-demo: GPU error {}\n", &.(error.code))
+  StderrWriter.print("loom-demo: GPU error {}\n", &.(error.code))
   return 2
 }
 
 effect fn failed<E>(error: E) -> i32 {
   drop error
-  StderrWriter.print("ui-app-demo: failed (tree, atlas, geometry or allocation)\n", &())
+  StderrWriter.print("loom-demo: failed (tree, atlas, geometry or allocation)\n", &())
   return 2
 }
 

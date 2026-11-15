@@ -24,7 +24,7 @@ impl Heap {
       Result<A, OutOfMemoryError>.Success { value } => move value
       Result<A, OutOfMemoryError>.Failure { error } => {
         drop error
-        Intrinsic.trap("ui-app: out of memory")
+        Intrinsic.trap("loom: out of memory")
       }
     }
   }
