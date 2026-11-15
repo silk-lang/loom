@@ -2,7 +2,7 @@
 
 Loom is the Elm-style UI framework for [Silk](https://github.com/silk-lang/silk): a model,
 messages, a pure `view`, an `update`, and commands and subscriptions as plain data. It runs on
-[Silk UI](https://github.com/silk-lang/lib-ui): the `loom` package depends only on
+[Silk UI](https://github.com/silk-lang/silkui): the `loom` package depends only on
 `ui-protocol`, and the hosts below put a Loom app in a native window, on a WebGPU canvas or in
 the browser DOM.
 
@@ -28,7 +28,7 @@ loom = { git = "https://github.com/silk-lang/loom.git", rev = "<commit>", path =
 loom_window = { git = "https://github.com/silk-lang/loom.git", rev = "<commit>", path = "modules/loom/window", package = "loom-window" }
 ```
 
-With `silkui` (from lib-ui) the app depends on `loom` alone: silkui builds the Loom targets
+With the `silkui` package (from the silkui repository) the app depends on `loom` alone: silkui builds the Loom targets
 from the same commit as the app's `loom` dependency, so the app and its host share one Loom.
 
 ## Working here
@@ -42,14 +42,14 @@ silk task native devtools                # the DevTools on the todo demo
 ```
 
 Silk UI's packages (`ui-protocol`, `ui-tree`, the window host, the inspector) come from
-[lib-ui](https://github.com/silk-lang/lib-ui), pinned to one commit in every manifest. A Silk
-build takes one copy of each package, so all manifests must name the same lib-ui commit, and
-the other pins (lib-native, lib-graphics, lib-fonts, lib-css) must match the ones that lib-ui
-commit uses. To move to a new lib-ui commit:
+[silkui](https://github.com/silk-lang/silkui), pinned to one commit in every manifest. A Silk
+build takes one copy of each package, so all manifests must name the same silkui commit, and
+the other pins (lib-native, lib-graphics, lib-fonts, lib-css) must match the ones that silkui
+commit uses. To move to a new silkui commit:
 
 ```sh
-scripts/pin-lib-ui.sh <lib-ui commit>
+scripts/pin-silkui.sh <silkui commit>
 ```
 
-then update the other pins if that lib-ui commit moved them. lib-ui's docs and benchmarks
-build Loom apps, so they pin this repository and, through it, the same lib-ui commit.
+then update the other pins if that silkui commit moved them. silkui's docs and benchmarks
+build Loom apps, so they pin this repository and, through it, the same silkui commit.

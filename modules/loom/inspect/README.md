@@ -1,9 +1,9 @@
 # loom-inspect
 
 silk-ui's inspector extension, `silk-ui`: what a silk-ui program adds to the inspector
-([ui-inspect-server](https://github.com/silk-lang/lib-ui/tree/main/modules/inspect/server)), which knows the tree and nothing else. It is
+([ui-inspect-server](https://github.com/silk-lang/silkui/tree/main/modules/inspect/server)), which knows the tree and nothing else. It is
 registered and served through the inspector's extension API
-([Extensions](https://github.com/silk-lang/lib-ui/blob/main/modules/inspect/server/README.md#extensions)), the way any other framework would add
+([Extensions](https://github.com/silk-lang/silkui/blob/main/modules/inspect/server/README.md#extensions)), the way any other framework would add
 its own; loom itself knows no inspector, and the inspector, its CLI, its MCP bridge and the
 devtools know nothing of silk-ui.
 

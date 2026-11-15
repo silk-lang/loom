@@ -4,13 +4,13 @@ Loom is a Silk UI framework in the Elm style: a model, messages, a pure
 `view`, an `update`, and commands and subscriptions as plain data. The view is a function the
 runtime calls again; it diffs the new description against the last one and sends the retained
 tree the fewest `Mutation`s it can. The `loom` package depends only on
-[ui-protocol](https://github.com/silk-lang/lib-ui/tree/main/modules/protocol): it sends `Mutation`s to a `Backend` and reads `Event` records back, so
-[ui-tree](https://github.com/silk-lang/lib-ui/tree/main/modules/tree) (through `loom-tree`), a browser document (`loom-dom`) or any other protocol
+[ui-protocol](https://github.com/silk-lang/silkui/tree/main/modules/protocol): it sends `Mutation`s to a `Backend` and reads `Event` records back, so
+[ui-tree](https://github.com/silk-lang/silkui/tree/main/modules/tree) (through `loom-tree`), a browser document (`loom-dom`) or any other protocol
 client can show it.
 
 Components (buttons, fields, lists, tabs, menus, dialogs and more) are in
 [loom-components](../loom-components), built on this package, and [examples/notes](https://github.com/silk-lang/nonstd/tree/7d6c3693a9ad1fec24127985626ab4224f9f1995/examples/notes) is a complete
-example app. [modules/README.md](https://github.com/silk-lang/lib-ui/blob/main/modules/README.md) is the overview of the whole UI stack.
+example app. [modules/README.md](https://github.com/silk-lang/silkui/blob/main/modules/README.md) is the overview of the whole UI stack.
 
 Packages:
 
@@ -21,7 +21,7 @@ Packages:
   and `frameRoot`, and headless driving for tests (`harness.silk`).
 - `modules/loom/window` (`loom-window`): `runWindow`, the loop that runs an app in a native window
   through [modules/platform/window](https://github.com/silk-lang/lib-native/tree/main/modules/platform/window) and [ui_renderer](https://github.com/silk-lang/lib-graphics/tree/main/modules/ui_renderer).
-  `runWindowWith` also serves an [inspector](https://github.com/silk-lang/lib-ui/tree/main/modules/inspect/server) (debug builds with
+  `runWindowWith` also serves an [inspector](https://github.com/silk-lang/silkui/tree/main/modules/inspect/server) (debug builds with
   `SILK_UI_INSPECT` set), so ui-inspect-cli, ui-inspect-mcp and the
   [devtools window](../devtools) can look at the app.
 - `modules/loom/examples`: a counter and a todo list. `modules/loom/demo` runs the todo list in a window.
@@ -339,7 +339,7 @@ managed images, measured bounds, custom GPU content, shared text caches and OS a
 `Ui.virtualItems` builds keyed content for the range requested by the backend.
 Variable-height measurements, overscan selection, scroll anchoring, focus retention,
 and private layout spacers live in `ui-tree`, available through its plain-data
-[mutation/query protocol](https://github.com/silk-lang/lib-ui/blob/main/modules/tree/README.md#virtual-scrolling). The app runtime only
+[mutation/query protocol](https://github.com/silk-lang/silkui/blob/main/modules/tree/README.md#virtual-scrolling). The app runtime only
 forwards configuration and node bindings and reconciles new range requests.
 
 The [scroll demo](https://github.com/silk-lang/nonstd/tree/7d6c3693a9ad1fec24127985626ab4224f9f1995/examples/scroll-demo) is a complete example. This separation removes

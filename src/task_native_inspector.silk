@@ -15,7 +15,7 @@ import silk.system.filesystem { FileError, FileSystem, Path }
 import silk.system.host_input { HostInput, HostInputError }
 import silk.text.string { String, InvalidUtf8 }
 import silk.num.i32
-import task_support { build, libUi, rootPath, pathText, require }
+import task_support { build, silkuiPackage, rootPath, pathText, require }
 import task_native_process { Process, Output, start, finish, poll, pause, milliseconds, execute, removeSocket }
 import task_native_display { Display, openDisplay, closeDisplay, joined, decimal, views }
 
@@ -197,7 +197,7 @@ pub effect fn embedded() -> ()
 ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
 ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
   let binary = run build("modules/loom/demo", false, false)
-  let cli = run libUi("modules/inspect/cli")
+  let cli = run silkuiPackage("modules/inspect/cli")
   let display = run openDisplay("x11")
   let result = run Effect.result(embeddedWith(String.view(&binary), String.view(&cli), &display))
   run closeDisplay(move display)
@@ -322,7 +322,7 @@ pub effect fn devtools(mode: string, connect: string, appBinary: string, appArgs
   }
   let app = if mode == "external" { run String.copy(appBinary) } else { run build("modules/loom/demo", false, false) }
   run require(String.view(&app) != "", "external requires --app-binary PATH")
-  let cli = run libUi("modules/inspect/cli")
+  let cli = run silkuiPackage("modules/inspect/cli")
   if mode != "check" { return run launchDevtools(String.view(&tools), String.view(&app), appArgs, String.view(&cli), &[], false) }
   let display = run openDisplay("x11")
   let env = run views(&display.environment)
