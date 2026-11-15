@@ -1,0 +1,85 @@
+//! A Loom app in a window: what the host silkui generates for a Loom app runs. The app's
+//! model `P` is a `Program<M, C>`; its commands may ask the window's [`Shell`] for things.
+//!
+//! ```silk,ignore
+//! import project.app { Model, Message }
+//! import silkui_window_loom.app { Settings, main as loom }
+//!
+//! pub fn main() -> i32 {
+//!   return loom<Model, Message>(Settings { title: "My app", width: 900.0, height: 600.0, inspect: true })
+//! }
+//! ```
+import loom.app { NoCommand }
+import loom.program { Program, CommandSet }
+import loom.shell { Shell }
+import loom_window.program { Launched, Window, launch, show, systemFonts, failed }
+import silk.core.effect { Effect }
+import silk.core.option { Option }
+import silk.core.ownership { Copy }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+
+/// The window an app opens, and whether a debug build serves the inspector when
+/// `SILK_UI_INSPECT` is set (the development host) or never does (the release host).
+pub struct Settings {
+  pub title: string<'static>,
+  pub width: f64,
+  pub height: f64,
+  pub inspect: bool,
+}
+
+impl Copy for Settings {}
+
+effect fn window(settings: Settings) -> Window ! OutOfMemoryError ? &mut Allocator {
+  let mut window = run Window.make(settings.title, settings.width, settings.height)
+  if !settings.inspect { window.uninspected() }
+  return move window
+}
+
+effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>) -> i32
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let fonts = run systemFonts()
+  return run show<P, M, NoCommand, never>(run window(settings), &fonts, move platform)
+}
+
+effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let window = run window(settings)
+  let mut shell = window.shell()
+  let fonts = run systemFonts()
+  return run show<P, M, C, &mut Shell | &mut Allocator>(move window, &fonts, move platform)
+    |> Effect.provideMut<Shell>(&mut shell)
+}
+
+fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(opened<P, M>(settings, move platform), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+/// The host's `main` for an app without commands: opens the window and runs the app until
+/// it closes. Answers the exit code.
+pub fn main<P: Program<M, NoCommand>, M>(settings: Settings) -> i32 {
+  // The main thread keeps the OS event loop; the app runs on its own thread.
+  return launch(
+    fn(platform: Option<Launched>) -> i32 {
+      return app<P, M>(settings, move platform)
+    },
+  )
+}
+
+/// [`main`] for an app with commands `C`, which may ask the window's [`Shell`] for things.
+pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings) -> i32 {
+  return launch(
+    fn(platform: Option<Launched>) -> i32 {
+      return appWithCommands<P, M, C>(settings, move platform)
+    },
+  )
+}
