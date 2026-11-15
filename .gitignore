@@ -1,0 +1,6 @@
+/build/
+/.cache/
+**/build/
+*.sock
+node_modules/
+/modules/ghostty/web/dist/

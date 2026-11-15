@@ -8,5 +8,5 @@ main = "app.silk"
 exports = ["app"]
 
 [dependencies]
-loom = { path = "../../../loom", package = "loom" }
-loom_window = { path = "../../../loom/window", package = "loom-window" }
+loom = { path = "../../loom", package = "loom" }
+loom_window = { path = "../../loom/window", package = "loom-window" }

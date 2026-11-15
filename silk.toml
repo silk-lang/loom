@@ -1,0 +1,31 @@
+[package]
+name = "loom-tasks"
+kind = "executable"
+source = "src"
+main = "tasks.silk"
+
+[workspace]
+members = [
+  "modules/loom",
+  "modules/loom/demo",
+  "modules/loom/dom",
+  "modules/loom/examples",
+  "modules/loom/inspect",
+  "modules/loom/mirror",
+  "modules/loom/notes",
+  "modules/loom/tests",
+  "modules/loom/tree",
+  "modules/loom/window",
+  "modules/loom/window/tests",
+  "modules/loom-components",
+  "modules/loom-components/demo",
+  "modules/loom-components/gallery",
+  "modules/loom-components/tests",
+  "modules/devtools",
+  "modules/devtools/app",
+  "modules/devtools/tests",
+  "modules/silkui/window",
+  "modules/silkui/web/canvas",
+  "modules/silkui/web/dom",
+]
+silk-version = "0.1.0-dev.74+205aea3f5b2e"

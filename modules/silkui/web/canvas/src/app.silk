@@ -1,5 +1,5 @@
 //! A Loom app on the page's canvas: what the host silkui generates for the web-canvas target
-//! runs. The page (`modules/tree/window/browser/app-host.js`) calls the host's `main` through
+//! runs. The page (lib-ui's `modules/tree/window/browser/app-host.js`) calls the host's `main` through
 //! JSPI, and the app runs until the page closes.
 //!
 //! ```silk,ignore

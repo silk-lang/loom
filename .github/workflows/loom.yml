@@ -1,0 +1,137 @@
+name: Loom
+# Linux runs everything. macOS and Windows run one job each with only what differs there:
+# the window host, linking and the terminal's PTY.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: loom-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  packages:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux window headers
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxkbcommon-dev libwayland-dev wayland-protocols
+      - uses: ./.github/actions/setup-silk
+      - name: Provision pinned LLVM and native tools
+        run: silk task setup-ci
+      - name: Every package, tests, HTTP images and goldens
+        run: silk task check
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: loom-package-failures
+          path: |
+            build/test-results
+            modules/**/actual*
+  native:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux window hosts
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxkbcommon-dev libwayland-dev wayland-protocols xvfb xauth weston
+      - uses: ./.github/actions/setup-silk
+      - run: silk task setup-ci --linux-gpu
+      # Debug builds: a release build of each demo takes four minutes.
+      - name: Window demos on X11 and Wayland
+        run: |
+          for demo in loom/demo loom/mirror loom-components/demo; do
+            silk task native demo "modules/$demo" -- check
+          done
+      - name: Devtools
+        run: |
+          silk task native devtools check
+          silk task native devtools embedded
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loom-inspector-Linux
+          path: .cache/ui-inspect/*.png
+          if-no-files-found: ignore
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-silk
+      - name: Provision pinned LLVM and native tools
+        run: silk task setup-ci
+      - name: Window host tests
+        run: silk test --manifest-path modules/loom/window/tests/silk.toml --root src/tests.silk
+      - name: Window demo
+        run: silk task native demo modules/loom/demo -- check
+      - name: Devtools
+        run: |
+          silk task native devtools check
+          silk task native devtools embedded
+      - name: Terminal wrapper, PTY and demo
+        run: |
+          python3 modules/ghostty/vt/scripts/prepare
+          silk test --manifest-path modules/ghostty/vt/silk.toml --root src/tests.silk
+          silk test --manifest-path modules/ghostty/demo/silk.toml --root src/tests.silk
+          silk build --manifest-path modules/ghostty/demo/silk.toml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loom-inspector-macOS
+          path: .cache/ui-inspect/*.png
+          if-no-files-found: ignore
+  windows:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: ./.github/actions/setup-silk
+      - name: Provision pinned LLVM and native tools
+        run: silk task setup-ci
+      - name: Window host tests
+        run: silk test --manifest-path modules/loom/window/tests/silk.toml --root src/tests.silk
+      - name: Prepare libghostty-vt
+        run: python3 modules/ghostty/vt/scripts/prepare
+      - name: Terminal wrapper tests
+        run: silk test --manifest-path modules/ghostty/vt/silk.toml --root src/tests.silk
+      - name: Terminal demo links
+        run: silk build --manifest-path modules/ghostty/demo/silk.toml
+  ghostty:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux window headers
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxkbcommon-dev libwayland-dev wayland-protocols
+      # Linux and the browser build libghostty-vt from source, which takes five minutes.
+      - uses: actions/cache@v4
+        id: vt
+        with:
+          path: modules/ghostty/vt/native/build
+          key: ghostty-vt-${{ runner.os }}-${{ hashFiles('modules/ghostty/vt/scripts/**') }}
+      - uses: mlugg/setup-zig@v2
+        if: steps.vt.outputs.cache-hit != 'true'
+        with:
+          version: 0.17.1
+      - name: Prepare libghostty-vt, native and WebAssembly
+        if: steps.vt.outputs.cache-hit != 'true'
+        run: python3 modules/ghostty/vt/scripts/prepare --wasm
+      - uses: ./.github/actions/setup-silk
+      - name: Provision pinned LLVM and native tools
+        run: silk task setup-ci
+      - name: Wrapper, component, PTY and browser page tests
+        run: |
+          for tests in vt tests demo web; do
+            silk test --manifest-path "modules/ghostty/$tests/silk.toml" --root src/tests.silk
+          done
+      - name: Demo app and browser page build
+        run: |
+          silk build --manifest-path modules/ghostty/demo/silk.toml
+          sh modules/ghostty/web/build.sh

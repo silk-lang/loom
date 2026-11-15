@@ -121,7 +121,7 @@ silk test --manifest-path modules/ghostty/demo/silk.toml --root src/tests.silk  
 silk test --manifest-path modules/ghostty/web/silk.toml --root src/tests.silk     # the page's shell
 ```
 
-The `ghostty` job in [UI CI](../../.github/workflows/ui.yml) prepares the library and runs these
+The `ghostty` job in [UI CI](../../.github/workflows/loom.yml) prepares the library and runs these
 on Linux, macOS and Windows.
 
 ## Credits
