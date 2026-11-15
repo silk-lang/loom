@@ -29,7 +29,7 @@ import ui_protocol.mutation {
   FACE_OBLIQUE
 }
 import ui_protocol.record { Event }
-import ui_protocol.aria { ariaText, isRelation, idsOf }
+import ui_protocol.aria { ariaText, isRelation, idsOf, isNamedAttribute }
 import ui_protocol.root { RootEvent, RootEventKind, RootSupport }
 import silk.collections.bytes { Bytes }
 import silk.collections.list { List }
@@ -94,7 +94,10 @@ struct Element {
   mixed: bool,
   /// The other ARIA attributes, as `ariaText` writes them.
   arias: List<Aria>,
+  literals: List<Literal>,
 }
+
+struct Literal { name: String, value: Option<String> }
 
 struct Aria {
   name: string<'static>,
@@ -198,6 +201,28 @@ effect fn escape(out: &mut Bytes, bytes: &[u8], quoted: bool) -> ()
     i = i + 1
   }
   run out.append(Slice.view<u8>(bytes, from, bytes.length - from))
+}
+
+fn hasLiteral(node: &Element, name: string) -> bool {
+  let mut i: usize = 0
+  while i < node.literals.length() {
+    if String.view(&node.literals.asSlice()[i].name) == name { return true }
+    i = i + 1
+  }
+  return false
+}
+
+effect fn typedAttribute(out: &mut Bytes, node: &Element, name: string, value: &[u8]) -> ()
+  ! OutOfMemoryError ? &mut Allocator {
+  if !hasLiteral(node, name) { run attribute(&mut out, name, value) }
+}
+effect fn typedFlagAttribute(out: &mut Bytes, node: &Element, name: string, value: u8) -> ()
+  ! OutOfMemoryError ? &mut Allocator {
+  if !hasLiteral(node, name) { run flagAttribute(&mut out, name, value) }
+}
+effect fn typedNumberAttribute(out: &mut Bytes, node: &Element, name: string, value: f32) -> ()
+  ! OutOfMemoryError ? &mut Allocator {
+  if !hasLiteral(node, name) { run numberAttribute(&mut out, name, value) }
 }
 
 effect fn attribute(out: &mut Bytes, name: string, value: &[u8]) -> ()
@@ -434,6 +459,7 @@ impl Html {
             anchored: false,
             mixed: false,
             arias: List<Aria>.make(),
+            literals: List<Literal>.make(),
           },
         )
         while self.slots.length() <= u32.toUsize(id) {
@@ -639,6 +665,28 @@ impl Html {
     ! OutOfMemoryError
     ? &mut Allocator {
     let node = &mut self.nodes.asMutSlice()[at]
+    let mut ariaValue = Bytes.make()
+    let named = match &entry.* {
+      Attribute.Label { .. } => Option<string<'static>>.some("aria-label")
+      Attribute.TestId { .. } => Option<string<'static>>.some("data-testid")
+      Attribute.Disabled { .. } => Option<string<'static>>.some("aria-disabled")
+      Attribute.Checked { .. } => Option<string<'static>>.some("aria-checked")
+      Attribute.Indeterminate { .. } => Option<string<'static>>.some("aria-checked")
+      Attribute.Selected { .. } => Option<string<'static>>.some("aria-selected")
+      Attribute.Expanded { .. } => Option<string<'static>>.some("aria-expanded")
+      Attribute.ClassName { .. } => Option<string<'static>>.some("class")
+      Attribute.ElementId { .. } => Option<string<'static>>.some("id")
+      _ => run ariaText(entry, &mut ariaValue)
+    }
+    let range = match &entry.* { Attribute.ValueRange { .. } => true Attribute.ClearValueRange => true _ => false }
+    let mut literalIndex: usize = 0
+    while literalIndex < node.literals.length() {
+      let name = String.view(&node.literals.asSlice()[literalIndex].name)
+      let same = match named { Option<string<'static>>.Some { value } => name == value _ => false }
+      if same || (range && (name == "aria-valuemin" || name == "aria-valuemax" || name == "aria-valuenow")) {
+        drop node.literals.remove(literalIndex)
+      } else { literalIndex = literalIndex + 1 }
+    }
     match &entry.* {
       Attribute.ValueRange { min, max, value } => {
         node.ranged = true
@@ -706,6 +754,19 @@ impl Html {
       }
       Attribute.ElementId { value } => {
         node.elementId = run String.copy(String.view(&value))
+      }
+      Attribute.Named { name, value } => {
+        if !isNamedAttribute(String.view(&name)) { return () }
+        let mut i: usize = 0
+        while i < node.literals.length() {
+          if String.view(&node.literals.asSlice()[i].name) == String.view(&name) { drop node.literals.remove(i) break }
+          i = i + 1
+        }
+        let copied = match &value {
+          Option<String>.Some { value: present } => Option<String>.some(run String.copy(String.view(&present)))
+          Option<String>.None => Option<String>.None
+        }
+        run node.literals.append(Literal { name: run String.copy(String.view(&name)), value: move copied })
       }
       Attribute.Indeterminate { value } => {
         node.mixed = value
@@ -835,40 +896,40 @@ impl Html {
         run address.append(self.base.ownedUtf8Bytes())
       }
       run address.append(node.href.ownedUtf8Bytes())
-      run attribute(&mut out, "href", address.asSlice())
+      run typedAttribute(&mut out, node, "href", address.asSlice())
     }
     if node.aria != Role.None {
-      run attribute(&mut out, "role", String.utf8Bytes(roleName(node.aria)))
+      run typedAttribute(&mut out, node, "role", String.utf8Bytes(roleName(node.aria)))
     }
     if node.label.ownedByteLength() != 0 {
-      run attribute(&mut out, "aria-label", node.label.ownedUtf8Bytes())
+      run typedAttribute(&mut out, node, "aria-label", node.label.ownedUtf8Bytes())
     }
     if node.testId.ownedByteLength() != 0 {
-      run attribute(&mut out, "data-testid", node.testId.ownedUtf8Bytes())
+      run typedAttribute(&mut out, node, "data-testid", node.testId.ownedUtf8Bytes())
     }
     if node.className.ownedByteLength() != 0 {
-      run attribute(&mut out, "class", node.className.ownedUtf8Bytes())
+      run typedAttribute(&mut out, node, "class", node.className.ownedUtf8Bytes())
     }
     if node.elementId.ownedByteLength() != 0 || contains(self.targets.asSlice(), node.id) {
       let mut name = Bytes.make()
       run self.elementIdOf(&mut name, node.id)
-      run attribute(&mut out, "id", name.asSlice())
+      run typedAttribute(&mut out, node, "id", name.asSlice())
     }
     if node.tabSet {
       if node.tab == NOT_FOCUSABLE {
         if node.kind == NodeKind.Input {
-          run attribute(&mut out, "tabindex", b"-1")
+          run typedAttribute(&mut out, node, "tabindex", b"-1")
         }
       } else if node.tab < 0 {
-        run attribute(&mut out, "tabindex", b"-1")
+        run typedAttribute(&mut out, node, "tabindex", b"-1")
       } else {
         let mut index = Bytes.make()
         run digits(&mut index, i32.toU32(node.tab))
-        run attribute(&mut out, "tabindex", index.asSlice())
+        run typedAttribute(&mut out, node, "tabindex", index.asSlice())
       }
     }
     if node.disabled {
-      run attribute(&mut out, "aria-disabled", b"true")
+      run typedAttribute(&mut out, node, "aria-disabled", b"true")
       if node.kind == NodeKind.Input {
         run out.append(b" disabled")
       }
@@ -877,12 +938,12 @@ impl Html {
       run out.append(b" readonly")
     }
     if node.placeholder.ownedByteLength() != 0 {
-      run attribute(&mut out, "placeholder", node.placeholder.ownedUtf8Bytes())
+      run typedAttribute(&mut out, node, "placeholder", node.placeholder.ownedUtf8Bytes())
     }
     if node.mixed {
-      run attribute(&mut out, "aria-checked", b"mixed")
+      run typedAttribute(&mut out, node, "aria-checked", b"mixed")
     } else {
-      run flagAttribute(&mut out, "aria-checked", node.checked)
+      run typedFlagAttribute(&mut out, node, "aria-checked", node.checked)
     }
     let arias = node.arias.asSlice()
     let mut i: usize = 0
@@ -901,19 +962,27 @@ impl Html {
           k = k + 1
         }
         if refs.length() != 0 {
-          run attribute(&mut out, arias[i].name, refs.asSlice())
+          run typedAttribute(&mut out, node, arias[i].name, refs.asSlice())
         }
       } else if arias[i].value.length() != 0 {
-        run attribute(&mut out, arias[i].name, arias[i].value.asSlice())
+        run typedAttribute(&mut out, node, arias[i].name, arias[i].value.asSlice())
       }
       i = i + 1
     }
-    run flagAttribute(&mut out, "aria-selected", node.selected)
-    run flagAttribute(&mut out, "aria-expanded", node.expanded)
+    run typedFlagAttribute(&mut out, node, "aria-selected", node.selected)
+    run typedFlagAttribute(&mut out, node, "aria-expanded", node.expanded)
     if node.ranged {
-      run numberAttribute(&mut out, "aria-valuemin", node.min)
-      run numberAttribute(&mut out, "aria-valuemax", node.max)
-      run numberAttribute(&mut out, "aria-valuenow", node.value)
+      run typedNumberAttribute(&mut out, node, "aria-valuemin", node.min)
+      run typedNumberAttribute(&mut out, node, "aria-valuemax", node.max)
+      run typedNumberAttribute(&mut out, node, "aria-valuenow", node.value)
+    }
+    let mut literalIndex: usize = 0
+    while literalIndex < node.literals.length() {
+      let literal = &node.literals.asSlice()[literalIndex]
+      if let Option<String>.Some { value } = &literal.value {
+        run attribute(&mut out, String.view(&literal.name), value.ownedUtf8Bytes())
+      }
+      literalIndex = literalIndex + 1
     }
     run self.style(&mut out, node)
   }

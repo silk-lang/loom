@@ -350,3 +350,16 @@ virtualization geometry from the app layer; the rest of `loom` talks to any
 The runtime resolves view keys to tree IDs and emits `SetAnchor`; placement then
 follows tree layout and scrolling without rendering the view again. Popup hierarchy
 and event handlers remain part of the view. The anchor key must exist in that view.
+
+### Selector identity
+
+`ui.class("flex gap-2")`, `ui.id("toolbar")`, and
+`ui.attribute("data-state", "open")` set selector identity on the open node.
+The document API has the same helpers: `h.class(...)`, `h.id(...)`, and
+`h.attribute(name, value)`. Existing `className` and `elementId` helpers remain.
+
+Named attributes support `data-*`, `aria-*`, `lang`, and `dir`. Empty strings
+remain present; omitting an attribute in the next view removes it. Repeated
+assignments to a name keep the last value. The tree, HTML renderer and browser
+wire preserve those distinctions. CSS loading and native sheet adoption are
+still in progress on this feature branch.

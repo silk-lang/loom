@@ -1412,6 +1412,16 @@ class Page {
         if (meta.mixed) set("aria-checked", "mixed");
         else set("aria-checked", meta.checked === undefined ? null : meta.checked ? "true" : "false");
         break;
+      case 22: {
+        const name = r.text();
+        const value = r.u8() === 1 ? r.text() : null;
+        if (name === "class" || name === "id" || name === "lang" || name === "dir" || /^(?:data|aria)-[a-z0-9_.:-]+$/.test(name)) {
+          if (value === null) node.removeAttribute(name);
+          else node.setAttribute(name, value);
+          if (name === "id" && this.relations.size) this.relating = true;
+        }
+        break;
+      }
       default:
         throw new Error(`silk-ui: unknown attribute ${code}`);
     }

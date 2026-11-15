@@ -331,6 +331,8 @@ const ATTR_ARIA: u8 = 20
 /// `aria-checked="mixed"` while on, the checked state again when off.
 const ATTR_INDETERMINATE: u8 = 21
 
+const ATTR_NAMED: u8 = 22
+
 const ATTR_ID: u8 = 19
 
 effect fn color(out: &mut Bytes, value: Rgba<f32>) -> ()
@@ -493,6 +495,17 @@ effect fn writeAttribute(out: &mut Bytes, entry: &Attribute) -> ()
     Attribute.ElementId { value } => {
       run byte(&mut out, ATTR_ID)
       run text(&mut out, value.ownedUtf8Bytes())
+    }
+    Attribute.Named { name, value } => {
+      run byte(&mut out, ATTR_NAMED)
+      run text(&mut out, name.ownedUtf8Bytes())
+      match &value {
+        Option<String>.Some { value: present } => {
+          run flag(&mut out, true)
+          run text(&mut out, present.ownedUtf8Bytes())
+        }
+        Option<String>.None => run flag(&mut out, false)
+      }
     }
     Attribute.Indeterminate { value } => {
       run byte(&mut out, ATTR_INDETERMINATE)

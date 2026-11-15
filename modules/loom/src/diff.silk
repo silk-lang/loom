@@ -681,6 +681,42 @@ effect fn props(
       }
     }
   }
+  if entry.extra != 0 || prior.extra != 0 {
+    let ex = next.extraCopy(entry)
+    let px = old.extraCopy(&prior)
+    run namedAttributes(next, ex.attributes, old, px.attributes, id, &mut state, &mut out)
+  }
+}
+
+/// Literal attributes run after typed attributes so explicit authored text wins.
+effect fn namedAttributes(next: &Arena, span: Span, old: &Arena, before: Span,
+  id: u32, state: &mut DiffState, out: &mut List<Mutation>) -> ()
+  ! OutOfMemoryError ? &mut Allocator {
+  let mut at: u32 = 0
+  while at < before.length {
+    let pair = old.namedAt(before, at)
+    let name = old.text(pair.name)
+    if next.namedFind(span, name).isNone() {
+      run out.append(Mutation.SetAttribute { id: id, attribute: Attribute.Named {
+        name: run copyText(&mut state, name), value: Option<String>.None } })
+    }
+    at = pair.next
+  }
+  at = 0
+  while at < span.length {
+    let pair = next.namedAt(span, at)
+    let name = next.text(pair.name)
+    let value = next.text(pair.value)
+    let changed = match old.namedFind(before, name) {
+      Option<Span>.Some { value: previous } => !sameBytes(value, old.text(previous))
+      Option<Span>.None => true
+    }
+    if changed {
+      run out.append(Mutation.SetAttribute { id: id, attribute: Attribute.Named {
+        name: run copyText(&mut state, name), value: Option<String>.some(run copyText(&mut state, value)) } })
+    }
+    at = pair.next
+  }
 }
 
 /// Sets the text attribute `field` of node `id` when its text changed.

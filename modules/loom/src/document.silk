@@ -104,6 +104,7 @@ union Op {
   Transition { text: Span },
   Element { text: Span },
   ClassName { text: Span },
+  NamedAttribute { name: Span, value: Span },
   ElementId { text: Span },
   FocusTrap { value: bool },
   TakeFocus,
@@ -909,18 +910,25 @@ impl<M> Document<M> {
   }
 
   /// The element a document backend shows the node as, by HTML tag name (`"tr"`, `"button"`).
-  /// The tree renderer ignores it.
+  /// The native tree retains it for selector matching.
   pub fn element(self: &Self, name: string) -> Attr {
     return self.op(Op.Element { text: self.store(name) })
   }
 
   /// The node's classes, as the HTML `class` attribute, so a page's stylesheets apply to it in
-  /// a document backend. The tree renderer ignores it.
+  /// a document backend. The native tree retains it for selector matching.
+  pub fn class(self: &Self, value: string) -> Attr { return self.className(value) }
+
+  /// A literal data/ARIA attribute, shared by native and document backends.
+  pub fn attribute(self: &Self, name: string, value: string) -> Attr {
+    return self.op(Op.NamedAttribute { name: self.store(name), value: self.store(value) })
+  }
+
   pub fn className(self: &Self, value: string) -> Attr {
     return self.op(Op.ClassName { text: self.store(value) })
   }
 
-  /// The node's HTML `id` in a document backend. The tree renderer ignores it.
+  /// The node's HTML `id` in a document backend. The native tree retains it for selector matching.
   pub fn id(self: &Self, value: string) -> Attr {
     return self.op(Op.ElementId { text: self.store(value) })
   }
@@ -1251,6 +1259,7 @@ fn apply<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, start: u32, count
       Op.Element { text } => {
         ui.element(tree.text(text))
       }
+      Op.NamedAttribute { name, value } => { ui.attribute(tree.text(name), tree.text(value)) }
       Op.ClassName { text } => {
         ui.className(tree.text(text))
       }
