@@ -531,7 +531,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
-    let root = tree.rootId()
+    let root = tree.current
     drop run self.stylesheets.serve(&mut tree, root)
     run frame(&mut state, &mut tree, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)
