@@ -1546,6 +1546,11 @@ class Page {
         const name = r.text();
         const value = r.u8() === 1 ? r.text() : null;
         if (name === "class" || name === "id" || name === "lang" || name === "dir" || /^(?:data|aria)-[a-z0-9_.:-]+$/.test(name)) {
+          if (RELATIONS.has(name)) {
+            const relations = this.relations.get(id);
+            relations?.delete(name);
+            if (relations?.size === 0) this.relations.delete(id);
+          }
           if (value === null) node.removeAttribute(name);
           else node.setAttribute(name, value);
           if (name === "id" && this.relations.size) this.relating = true;
