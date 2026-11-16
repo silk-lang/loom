@@ -1,3 +1,4 @@
+import ui_protocol.stylesheet { StyleSource }
 //! [`Html`]: a document that is written down instead of shown. It is a [`Backend`] that keeps
 //! what the mutations built and serializes it as markup `js/silk-ui-dom.js` hydrates: the page
 //! is readable before the program loads, and the program adopts the nodes it finds.
@@ -110,6 +111,8 @@ struct Aria {
 }
 
 /// A font family, an image or an icon: what number `id` stands for in the markup.
+struct RuntimeSheet { id: u32, source: StyleSource }
+
 struct Named {
   id: u32,
   value: String,
@@ -131,6 +134,7 @@ pub struct Html {
   base: String,
   /// `@import` rules of font stylesheets, which come first in a stylesheet.
   fontImports: Bytes,
+  runtimeSheets: List<RuntimeSheet>,
   /// Nodes an ARIA relation has named: each gets an element id, `silk-<id>` without its own.
   targets: List<u32>,
   /// `@font-face` rules.
@@ -342,6 +346,7 @@ impl Html {
       icons: List<Named>.make(),
       base: String.make(),
       fontImports: Bytes.make(),
+      runtimeSheets: List<RuntimeSheet>.make(),
       targets: List<u32>.make(),
       fontFaces: Bytes.make(),
     }
@@ -590,6 +595,7 @@ impl Html {
       Mutation.CloseRoot { root } => {
         if root == FIRST_ROOT {
           self.root = 0
+          self.runtimeSheets.clear()
         }
       }
       Mutation.SetGrid { id, value } => {
@@ -676,6 +682,40 @@ impl Html {
           r = r + 2
         }
         run out.append(b";font-display:swap}")
+      }
+      Mutation.LoadStyleSheet { root, sheet, source } => {
+        if root == 0 {
+          let mut at: usize = 0
+          while at < self.runtimeSheets.length() && self.runtimeSheets.asSlice()[at].id != sheet { at = at + 1 }
+          let replacement = RuntimeSheet { id: sheet, source: run source.copy() }
+          if at == self.runtimeSheets.length() { run self.runtimeSheets.append(move replacement) }
+          else { let sheets = self.runtimeSheets.asMutSlice() sheets[at] = move replacement }
+        }
+      }
+      Mutation.RemoveStyleSheet { root, sheet } => {
+        let mut at: usize = 0
+        while root == 0 && at < self.runtimeSheets.length() {
+          if self.runtimeSheets.asSlice()[at].id == sheet { drop self.runtimeSheets.remove(at) break }
+          at = at + 1
+        }
+      }
+      Mutation.SetStyleSheetOrder { root, sheets } => {
+        if root == 0 && sheets.length() == self.runtimeSheets.length() {
+          let mut ordered = List<RuntimeSheet>.make()
+          let ids = sheets.asSlice()
+          let mut i: usize = 0
+          let mut valid = true
+          while i < ids.length {
+            let mut earlier: usize = 0
+            while earlier < i { if ids[earlier] == ids[i] { valid = false } earlier = earlier + 1 }
+            let mut at: usize = 0
+            while at < self.runtimeSheets.length() && self.runtimeSheets.asSlice()[at].id != ids[i] { at = at + 1 }
+            if at == self.runtimeSheets.length() { valid = false }
+            else { run ordered.append(RuntimeSheet { id: ids[i], source: run self.runtimeSheets.asSlice()[at].source.copy() }) }
+            i = i + 1
+          }
+          if valid { self.runtimeSheets = move ordered }
+        }
       }
       Mutation.LoadFontStylesheet { url } => {
         let address = run self.address(String.view(&url))
@@ -1163,6 +1203,34 @@ impl Html {
     run self.rules(&mut out, 4, ":focus-visible")
     run self.rules(&mut out, 2, ":active")
     run out.append(b"</style>")
+    let sheets = self.runtimeSheets.asSlice()
+    let mut i: usize = 0
+    while i < sheets.length {
+      match &sheets[i].source {
+        StyleSource.Text { bytes } => {
+          run out.append(b"<style data-silk-runtime=\"")
+          run digits(&mut out, sheets[i].id)
+          run out.append(b"\">")
+          let css = bytes.asSlice()
+          let mut at: usize = 0
+          while at < css.length {
+            if css[at] == 60 { run out.append(b"\\3c ") }
+            else { let one: [u8; 1] = [css[at]] run out.append(&one) }
+            at = at + 1
+          }
+          run out.append(b"</style>")
+        }
+        StyleSource.Url { url } => {
+          run out.append(b"<link rel=\"stylesheet\" data-silk-runtime=\"")
+          run digits(&mut out, sheets[i].id)
+          run out.append(b"\"")
+          let address = run self.address(String.view(&url))
+          run attribute(&mut out, "href", String.utf8Bytes(String.view(&address)))
+          run out.append(b">")
+        }
+      }
+      i = i + 1
+    }
     run self.element(&mut out, self.root)
     return move out
   }

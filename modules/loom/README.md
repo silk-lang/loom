@@ -362,7 +362,11 @@ Named attributes support `data-*`, `aria-*`, `lang`, and `dir`. Empty strings
 remain present; omitting an attribute in the next view removes it. Repeated
 assignments to a name keep the last value. The tree, HTML renderer and browser
 wire preserve those distinctions. The native tree accepts compiled sheets through
-its batch protocol; automatic stylesheet loading is still in progress.
+its batch protocol. `Batch.loadStyleSheet(root, id, source)` also accepts CSS text or a URL.
+Generated development hosts include the runtime compiler; release tree hosts opt in with
+`App.runtimeStylesheets()`. A custom `Window` can install `runtimeStylesheets()` with
+`withStylesheetCompiler`. DOM hosts use the browser's parser. Loads preserve adoption order,
+keep the previous sheet after failure, and ignore cancelled results.
 
 ### Custom properties
 

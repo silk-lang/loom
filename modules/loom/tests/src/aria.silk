@@ -350,3 +350,39 @@ test effect fn customPropertyHelpersSurviveStyleResetAndRemoval() -> () ! Assert
   let mut allocator = Allocator.systemAllocatorProvider()
   run customDiffBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
+
+import ui_protocol.stylesheet { StyleSource }
+
+effect fn runtimeSheetsBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError ? &mut Allocator {
+  let mut page = Html.make()
+  let mut batch = Batch.make()
+  run batch.create(1, NodeKind.Box)
+  run batch.root(1)
+  run batch.loadStyleSheet(0, 9, run StyleSource.text(b".a { content: '</style><script>'; width: 8px }"))
+  run batch.loadStyleSheet(0, 10, run StyleSource.url("theme.css?a=1&b=2"))
+  run page.mutate(run batch.take())
+  let first = run page.markup()
+  run Testing.expect(has(first.asSlice(), "data-silk-runtime=\"9\"") && has(first.asSlice(), "width: 8px"), "server rendering includes runtime CSS text")
+  run Testing.expect(!has(first.asSlice(), "</style><script>"), "runtime CSS cannot terminate its HTML style element")
+  run Testing.expect(has(first.asSlice(), "data-silk-runtime=\"10\"") && has(first.asSlice(), "a=1&amp;b=2"), "server rendering links and escapes stylesheet URLs")
+  run batch.loadStyleSheet(0, 9, run StyleSource.text(b".a { width: 12px }"))
+  run batch.removeStyleSheet(0, 10)
+  run page.mutate(run batch.take())
+  let replaced = run page.markup()
+  run Testing.expect(has(replaced.asSlice(), "width: 12px") && !has(replaced.asSlice(), "width: 8px") && !has(replaced.asSlice(), "data-silk-runtime=\"10\""), "replacement and removal update server-rendered stylesheet state")
+  let mut bytes = Bytes.make()
+  let load = Mutation.LoadStyleSheet { root: 0, sheet: 9, source: run StyleSource.text(b"a{}") }
+  run Testing.expect(run wire.writeMutation(&mut bytes, &load), "runtime CSS travels over the DOM wire")
+  run Testing.expect(bytes.length() == 17 && bytes.asSlice()[0] == 38 && bytes.asSlice()[9] == 0, "wire identifies CSS text separately from a URL")
+  run batch.closeRoot(0)
+  run page.mutate(run batch.take())
+  let closed = run page.markup()
+  run Testing.expect(!has(closed.asSlice(), "data-silk-runtime"), "closing a root releases its sheets")
+}
+
+test effect fn runtimeStylesheetsReachMarkupAndDomWire() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run runtimeSheetsBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}

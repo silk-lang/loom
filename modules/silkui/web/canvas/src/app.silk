@@ -1,3 +1,4 @@
+import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets }
 //! A Loom app on the page's canvas: what the host silkui generates for the web-canvas target
 //! runs. The page (silkui's `modules/tree/window/browser/app-host.js`) calls the host's `main` through
 //! JSPI, and the app runs until the page closes.
@@ -28,20 +29,22 @@ pub struct Settings {
 
 impl Copy for Settings {}
 
-effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
+effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string, compiler: Compiler) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
   // The browser has no system fonts to read, so the page gets the tree's own.
   let fonts = run fixtures.fonts()
   let mut window = run Window.make(settings.title, 800.0, 600.0)
+  window.withStylesheetCompiler(compiler)
   window.withStyleSheets(run StyleAssets.from(sources))
   window.withStyleSheetUpdates(run SheetWatch.from(updatePath))
   return run show<P, M, NoCommand, never>(move window, &fonts, Option<Launched>.None)
 }
 
-effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32
+effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, sources: &[&[u8]], updatePath: string, compiler: Compiler) -> i32
   ! FileError | OutOfMemoryError
   ? &mut Allocator {
   let fonts = run fixtures.fonts()
   let mut window = run Window.make(settings.title, 800.0, 600.0)
+  window.withStylesheetCompiler(compiler)
   window.withStyleSheets(run StyleAssets.from(sources))
   window.withStyleSheetUpdates(run SheetWatch.from(updatePath))
   let mut shell = window.shell()
@@ -61,7 +64,7 @@ pub fn mainWithSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: 
 
 pub fn mainWithSheetUpdates<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(opened<P, M>(settings, sources, updatePath), failed)
+  return run Effect.catchAll(opened<P, M>(settings, sources, updatePath, Compiler.off()), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
@@ -80,6 +83,20 @@ pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M, C: CommandSet<M, &mut Sh
   settings: Settings, sources: &[&[u8]], updatePath: string,
 ) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, sources, updatePath), failed)
+  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, sources, updatePath, Compiler.off()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+pub fn mainWithRuntimeSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(opened<P, M>(settings, sources, updatePath, runtimeStylesheets()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+pub fn withCommandsAndRuntimeSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]], updatePath: string,
+) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, sources, updatePath, runtimeStylesheets()), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }

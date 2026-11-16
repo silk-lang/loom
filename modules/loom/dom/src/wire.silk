@@ -1,3 +1,4 @@
+import ui_protocol.stylesheet { StyleSource }
 //! The bytes that cross between the program and `js/silk-ui-dom.js`: mutation batches out,
 //! event records in. Integers are little-endian; a string is its length (u32) and its UTF-8.
 //!
@@ -616,6 +617,28 @@ pub effect fn writeMutation(out: &mut Bytes, mutation: &Mutation) -> bool
       run byte(&mut out, OP_ROOT)
       run word(&mut out, root)
       run word(&mut out, node)
+    }
+    Mutation.LoadStyleSheet { root, sheet, source } => {
+      run byte(&mut out, 38)
+      run word(&mut out, root)
+      run word(&mut out, sheet)
+      match &source {
+        StyleSource.Text { bytes } => { run byte(&mut out, 0) run text(&mut out, bytes.asSlice()) }
+        StyleSource.Url { url } => { run byte(&mut out, 1) run text(&mut out, String.utf8Bytes(String.view(&url))) }
+      }
+    }
+    Mutation.RemoveStyleSheet { root, sheet } => {
+      run byte(&mut out, 39)
+      run word(&mut out, root)
+      run word(&mut out, sheet)
+    }
+    Mutation.SetStyleSheetOrder { root, sheets } => {
+      run byte(&mut out, 40)
+      run word(&mut out, root)
+      run word(&mut out, usize.toU32(sheets.length()))
+      let ids = sheets.asSlice()
+      let mut i: usize = 0
+      while i < ids.length { run word(&mut out, ids[i]) i = i + 1 }
     }
     Mutation.CloseRoot { root } => {
       run byte(&mut out, OP_CLOSE_ROOT)

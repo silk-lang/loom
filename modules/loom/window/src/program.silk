@@ -1,3 +1,5 @@
+pub import ui_tree.style_runtime { runtime as runtimeStylesheets }
+pub import ui_tree.style_compiler { Compiler as StylesheetCompiler }
 //! A [`Program`] in a native window, with the [`Shell`] of that window.
 //!
 //! ```silk,ignore
@@ -137,6 +139,7 @@ pub struct Window {
   width: f64,
   height: f64,
   resources: Batch,
+  stylesheetCompiler: StylesheetCompiler,
   stylesheets: StyleAssets,
   stylesheetUpdates: SheetWatch,
   files: List<CarriedFile>,
@@ -167,6 +170,7 @@ impl Window {
       width: width,
       height: height,
       resources: Batch.make(),
+      stylesheetCompiler: StylesheetCompiler.off(),
       stylesheets: StyleAssets.make(),
       stylesheetUpdates: SheetWatch.make(),
       files: List<CarriedFile>.make(),
@@ -180,6 +184,8 @@ impl Window {
   }
 
   /// Installs precompiled application sheets in their supplied order before layout.
+  pub fn withStylesheetCompiler(self: &mut Self, compiler: StylesheetCompiler) -> () { self.stylesheetCompiler = compiler }
+
   pub fn withStyleSheets(self: &mut Self, stylesheets: StyleAssets) -> () {
     self.stylesheets = move stylesheets
   }
@@ -479,6 +485,7 @@ struct CarriedFile {
 }
 
 struct ShellContent<A, M, C> {
+  stylesheetCompiler: StylesheetCompiler,
   desk: Arc<Mutex<Desk>>,
   dialogs: List<Asked>,
   greeted: bool,
@@ -544,6 +551,7 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
   effect fn files(self: &mut Self, loader: &mut Loader) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
+    loader.setStylesheetCompiler(self.stylesheetCompiler)
     let files = self.files.asSlice()
     let mut i: usize = 0
     while i < files.length {
@@ -736,6 +744,7 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     Inspector.off()
   }
   let mut content = ShellContent<Hosted<P>, M, Run<C>> {
+    stylesheetCompiler: window.stylesheetCompiler,
     desk: window.desk.clone(),
     dialogs: List<Asked>.make(),
     greeted: false,

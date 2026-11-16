@@ -339,6 +339,102 @@ async function compile(wasm) {
   return WebAssembly.compile(wasm);
 }
 
+export class RuntimeSheets {
+  constructor(document, resolve) {
+    this.document = document;
+    this.resolve = resolve;
+    this.entries = new Map();
+  }
+
+  load(id, source, url) {
+    let entry = this.entries.get(id);
+    if (!entry) {
+      const node = this.document.createElement("style");
+      node.dataset.silkSheet = id;
+      this.document.head.append(node);
+      entry = { node, controller: null, state: "loading" };
+      this.entries.set(id, entry);
+    }
+    entry.controller?.abort();
+    const controller = new AbortController();
+    entry.controller = controller;
+    entry.state = "loading";
+    const apply = text => {
+      if (controller.signal.aborted) return;
+      if (entry.objectURL) { URL.revokeObjectURL(entry.objectURL); entry.objectURL = null; }
+      if (entry.node.tagName === "LINK") {
+        const node = this.document.createElement("style");
+        node.dataset.silkSheet = id;
+        node.textContent = text;
+        entry.node.replaceWith(node);
+        entry.node = node;
+      } else { entry.node.textContent = text; }
+      entry.state = "ready";
+    };
+    if (!url) { apply(source); return Promise.resolve(); }
+    return this.loadAddress(source, entry, controller).then(() => {}, () => {
+      if (!controller.signal.aborted) entry.state = "failed";
+    });
+  }
+
+  async loadAddress(source, entry, controller) {
+    const address = await this.resolve(source);
+    if (controller.signal.aborted) return;
+    const objectURL = address instanceof Blob ? URL.createObjectURL(address) : null;
+    const node = this.document.createElement("link");
+    node.rel = "stylesheet";
+    node.media = "not all";
+    node.href = objectURL ?? address;
+    return new Promise((resolve, reject) => {
+      entry.pendingNode = node;
+      const cleanup = () => {
+        entry.pendingNode = null;
+        node.onload = node.onerror = null;
+        controller.signal.removeEventListener("abort", cancel);
+      };
+      const discard = () => {
+        cleanup();
+        node.remove();
+        if (objectURL) URL.revokeObjectURL(objectURL);
+      };
+      const cancel = () => { discard(); resolve(); };
+      controller.signal.addEventListener("abort", cancel, { once: true });
+      node.onload = () => {
+        cleanup();
+        if (entry.objectURL) URL.revokeObjectURL(entry.objectURL);
+        entry.objectURL = objectURL;
+        node.media = "";
+        entry.node.remove();
+        entry.node = node;
+        entry.state = "ready";
+        resolve();
+      };
+      node.onerror = () => { discard(); reject(new Error("Stylesheet request failed")); };
+      entry.node.before(node);
+    });
+  }
+
+  remove(id) {
+    const entry = this.entries.get(id);
+    entry?.controller?.abort();
+    if (entry?.objectURL) URL.revokeObjectURL(entry.objectURL);
+    entry?.node.remove();
+    this.entries.delete(id);
+  }
+
+  reorder(ids) {
+    if (ids.length !== this.entries.size || new Set(ids).size !== ids.length || ids.some(id => !this.entries.has(id))) return;
+    const ordered = ids.map(id => [id, this.entries.get(id)]);
+    for (const [, entry] of ordered) {
+      if (entry.pendingNode) this.document.head.append(entry.pendingNode);
+      this.document.head.append(entry.node);
+    }
+    this.entries = new Map(ordered);
+  }
+
+  close() { for (const id of this.entries.keys()) this.remove(id); }
+}
+
 class Page {
   constructor(root, { fonts, loaders = {}, base }) {
     this.root = root;
@@ -352,6 +448,12 @@ class Page {
     this.faces = new Map();
     // The stylesheets of font rules linked so far.
     this.stylesheets = new Set();
+    this.runtimeSheets = new RuntimeSheets(document, url => this.resolve(url));
+    for (const node of root.querySelectorAll("[data-silk-runtime]")) {
+      const id = Number(node.getAttribute("data-silk-runtime"));
+      document.head.append(node);
+      this.runtimeSheets.entries.set(id, { node, controller: null, state: "ready" });
+    }
     // Addresses this page made for resources the program defined, to revoke.
     this.made = new Map();
     this.anchored = new Set();
@@ -832,9 +934,26 @@ class Page {
           this.defineKeyframes(name, frames);
           break;
         }
+        case 38: {
+          const root = r.u32(), sheet = r.u32(), url = r.u8(), source = r.text();
+          if (root === 0) void this.runtimeSheets.load(sheet, source, url !== 0);
+          break;
+        }
+        case 39: {
+          const root = r.u32(), sheet = r.u32();
+          if (root === 0) this.runtimeSheets.remove(sheet);
+          break;
+        }
+        case 40: {
+          const root = r.u32(), count = r.u32(), ids = [];
+          for (let i = 0; i < count; i++) ids.push(r.u32());
+          if (root === 0) this.runtimeSheets.reorder(ids);
+          break;
+        }
         case 27: {
           // The first root closes: the mounted element shows nothing.
           if (r.u32() !== 0) break;
+          this.runtimeSheets.close();
           this.nodes.get(this.rootId)?.remove();
           this.rootId = 0;
           break;
