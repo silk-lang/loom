@@ -2,7 +2,7 @@
 name = "silkui-web-canvas"
 description = "What the hosts silkui generates for a Loom app on the web-canvas target run: the tree, drawn with WebGPU on the page's canvas"
 version = "0.1.0"
-silk-version = "0.1.0-dev.74+205aea3f5b2e"
+silk-version = "0.1.0-pipeline.1"
 kind = "library"
 main = "app.silk"
 exports = ["app", "gpu"]
@@ -10,6 +10,6 @@ exports = ["app", "gpu"]
 [dependencies]
 loom = { path = "../../../loom", package = "loom" }
 loom_window = { path = "../../../loom/window", package = "loom-window" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "d4ca81c7dd15605847e5f5c7458b1735e4dba846", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
-webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "b40277a5a58d7ddf679cff350e8ee0f02388ef3f", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
-webgpu_sys = { git = "https://github.com/silk-lang/lib-native.git", rev = "b40277a5a58d7ddf679cff350e8ee0f02388ef3f", path = "modules/gpu/webgpu/sys", package = "gpu-webgpu-sys" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "7a78ea4edcc994505e08e65e1014c9ea937ec22a", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "8b411d1f2e4848a6a93d5cf26b488cd52db64069", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
+webgpu_sys = { git = "https://github.com/silk-lang/lib-native.git", rev = "8b411d1f2e4848a6a93d5cf26b488cd52db64069", path = "modules/gpu/webgpu/sys", package = "gpu-webgpu-sys" }
