@@ -1,3 +1,5 @@
+pub import ui_tree.style_runtime { runtime as runtimeStylesheets }
+pub import ui_tree.style_compiler { Compiler as StylesheetCompiler }
 //! A [`Program`] in a native window, with the [`Shell`] of that window.
 //!
 //! ```silk,ignore
@@ -31,7 +33,7 @@
 //!
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
-import lib { WindowContent, runWindowHosted, Loader }
+import lib { WindowContent, runWindowHostedWithSheetUpdates, Loader }
 import loom.app { App }
 import loom.program { Program, CommandSet, Hosted, Run, make }
 import loom.runtime { Runtime }
@@ -129,11 +131,17 @@ fn wake(desk: &Arc<Mutex<Desk>>) -> () {
 }
 
 /// The window a program opens: its title and size, its fonts, and its [`Shell`].
+pub import ui_tree.style_assets { StyleAssets }
+pub import ui_tree_window.style_watch { SheetWatch }
+
 pub struct Window {
   title: string<'static>,
   width: f64,
   height: f64,
   resources: Batch,
+  stylesheetCompiler: StylesheetCompiler,
+  stylesheets: StyleAssets,
+  stylesheetUpdates: SheetWatch,
   files: List<CarriedFile>,
   inspect: bool,
   check: bool,
@@ -162,6 +170,9 @@ impl Window {
       width: width,
       height: height,
       resources: Batch.make(),
+      stylesheetCompiler: StylesheetCompiler.off(),
+      stylesheets: StyleAssets.make(),
+      stylesheetUpdates: SheetWatch.make(),
       files: List<CarriedFile>.make(),
       inspect: true,
       check: false,
@@ -170,6 +181,23 @@ impl Window {
       lowestLatency: false,
       desk: run Arc<Mutex<Desk>>.make(run Mutex<Desk>.make(move desk)),
     }
+  }
+
+  /// Installs precompiled application sheets in their supplied order before layout.
+  pub fn withStylesheetCompiler(self: &mut Self, compiler: StylesheetCompiler) -> () { self.stylesheetCompiler = compiler }
+
+  pub fn withStyleSheets(self: &mut Self, stylesheets: StyleAssets) -> () {
+    self.stylesheets = move stylesheets
+  }
+
+  /// Enables compiled stylesheet updates prepared by the development task.
+  pub fn withStyleSheetUpdates(self: &mut Self, updates: SheetWatch) -> () {
+    self.stylesheetUpdates = move updates
+  }
+
+  pub effect fn stylesheet(self: &mut Self, bytes: &[u8]) -> ()
+    ! OutOfMemoryError ? &mut Allocator {
+    run self.stylesheets.append(bytes)
   }
 
   /// The families `css.fontFamilyNumber(family)` stands for, most wanted first:
@@ -457,6 +485,7 @@ struct CarriedFile {
 }
 
 struct ShellContent<A, M, C> {
+  stylesheetCompiler: StylesheetCompiler,
   desk: Arc<Mutex<Desk>>,
   dialogs: List<Asked>,
   greeted: bool,
@@ -522,6 +551,7 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
   effect fn files(self: &mut Self, loader: &mut Loader) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
+    loader.setStylesheetCompiler(self.stylesheetCompiler)
     let files = self.files.asSlice()
     let mut i: usize = 0
     while i < files.length {
@@ -714,19 +744,20 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     Inspector.off()
   }
   let mut content = ShellContent<Hosted<P>, M, Run<C>> {
+    stylesheetCompiler: window.stylesheetCompiler,
     desk: window.desk.clone(),
     dialogs: List<Asked>.make(),
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
   }
-  let code = run runWindowHosted<
+  let code = run runWindowHostedWithSheetUpdates<
     ShellContent<Hosted<P>, M, Run<C>>,
     Hosted<P>,
     M,
     Run<C>,
     OutOfMemoryError,
     R
-  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content)
+  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content, Intrinsic.replace(window.stylesheets, StyleAssets.make()), Intrinsic.replace(window.stylesheetUpdates, SheetWatch.make()))
 
   // The platform ends with the window.
   let mut guard = window.desk.get().lock()

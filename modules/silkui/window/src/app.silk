@@ -1,3 +1,4 @@
+import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets }
 //! A Loom app in a window: what the host silkui generates for a Loom app runs. The app's
 //! model `P` is a `Program<M, C>`; its commands may ask the window's [`Shell`] for things.
 //!
@@ -12,8 +13,9 @@
 import loom.app { NoCommand }
 import loom.program { Program, CommandSet }
 import loom.shell { Shell }
-import loom_window.program { Launched, Window, launch, show, systemFonts, failed }
+import loom_window.program { Launched, Window, StyleAssets, SheetWatch, launch, show, systemFonts, failed }
 import silk.core.effect { Effect }
+import silk.system.filesystem { FileError }
 import silk.core.option { Option }
 import silk.core.ownership { Copy }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
@@ -29,57 +31,109 @@ pub struct Settings {
 
 impl Copy for Settings {}
 
-effect fn window(settings: Settings) -> Window ! OutOfMemoryError ? &mut Allocator {
+effect fn window(settings: Settings, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> Window ! OutOfMemoryError ? &mut Allocator {
   let mut window = run Window.make(settings.title, settings.width, settings.height)
+  window.withStylesheetCompiler(compiler)
+  window.withStyleSheets(move sheets)
+  window.withStyleSheetUpdates(move updates)
   if !settings.inspect { window.uninspected() }
   return move window
 }
 
-effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>) -> i32
+effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
   let fonts = run systemFonts()
-  return run show<P, M, NoCommand, never>(run window(settings), &fonts, move platform)
+  return run show<P, M, NoCommand, never>(run window(settings, move sheets, move updates, compiler), &fonts, move platform)
 }
 
-effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32
+effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
-  let window = run window(settings)
+  let window = run window(settings, move sheets, move updates, compiler)
   let mut shell = window.shell()
   let fonts = run systemFonts()
   return run show<P, M, C, &mut Shell | &mut Allocator>(move window, &fonts, move platform)
     |> Effect.provideMut<Shell>(&mut shell)
 }
 
-fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>) -> i32 {
+fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(opened<P, M>(settings, move platform), failed)
+  return run Effect.catchAll(opened<P, M>(settings, move platform, move sheets, move updates, compiler), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32 {
+fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
-  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform), failed)
+  return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform, move sheets, move updates, compiler), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-/// The host's `main` for an app without commands: opens the window and runs the app until
-/// it closes. Answers the exit code.
+/// The host's main for an app without commands.
 pub fn main<P: Program<M, NoCommand>, M>(settings: Settings) -> i32 {
-  // The main thread keeps the OS event loop; the app runs on its own thread.
-  return launch(
-    fn(platform: Option<Launched>) -> i32 {
-      return app<P, M>(settings, move platform)
-    },
-  )
+  return mainWithSheets<P, M>(settings, &[])
 }
 
-/// [`main`] for an app with commands `C`, which may ask the window's [`Shell`] for things.
+/// Starts with build-compiled application sheets, in adoption order.
+pub fn mainWithSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]]) -> i32 {
+  return mainWithSheetUpdates<P, M>(settings, sources, "")
+}
+
+pub fn mainWithSheetUpdates<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(launchSheets<P, M>(settings, sources, updatePath, Compiler.off()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+effect fn launchSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string, compiler: Compiler) -> i32
+  ! FileError | OutOfMemoryError ? &mut Allocator {
+  let sheets = run StyleAssets.from(sources)
+  let updates = run SheetWatch.from(updatePath)
+  // Copy borrowed source bytes before transferring them to the app thread.
+  return launch(fn(platform: Option<Launched>) -> i32 {
+    return app<P, M>(settings, move platform, move sheets, move updates, compiler)
+  })
+}
+
+/// Main for an app whose commands may ask the window's Shell for things.
 pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings) -> i32 {
-  return launch(
-    fn(platform: Option<Launched>) -> i32 {
-      return appWithCommands<P, M, C>(settings, move platform)
-    },
-  )
+  return withCommandsAndSheets<P, M, C>(settings, &[])
+}
+
+pub fn withCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]],
+) -> i32 {
+  return withCommandsAndSheetUpdates<P, M, C>(settings, sources, "")
+}
+
+pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]], updatePath: string,
+) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(launchCommandsAndSheets<P, M, C>(settings, sources, updatePath, Compiler.off()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+effect fn launchCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]], updatePath: string, compiler: Compiler,
+) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
+  let sheets = run StyleAssets.from(sources)
+  let updates = run SheetWatch.from(updatePath)
+  return launch(fn(platform: Option<Launched>) -> i32 {
+    return appWithCommands<P, M, C>(settings, move platform, move sheets, move updates, compiler)
+  })
+}
+
+pub fn mainWithRuntimeSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources: &[&[u8]], updatePath: string) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(launchSheets<P, M>(settings, sources, updatePath, runtimeStylesheets()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+pub fn withCommandsAndRuntimeSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings, sources: &[&[u8]], updatePath: string,
+) -> i32 {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  return run Effect.catchAll(launchCommandsAndSheets<P, M, C>(settings, sources, updatePath, runtimeStylesheets()), failed)
+    |> Effect.provideMut<Allocator>(&mut allocator)
 }

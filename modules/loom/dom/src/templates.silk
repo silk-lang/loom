@@ -353,6 +353,9 @@ impl Templates {
       Mutation.SetStyle { id, state, .. } => {
         run self.part(&out, at, id, state == StyleState.Base)
       }
+      Mutation.SetCustomProperty { id, state, .. } => {
+        run self.part(&out, at, id, state == StyleState.Base)
+      }
       Mutation.SetAttribute { id, attribute } => {
         let carried = match &attribute {
           Attribute.Element { .. } => true
