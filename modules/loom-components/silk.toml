@@ -8,4 +8,4 @@ exports = ["lib", "theme", "layout", "button", "choice", "slider", "field", "lis
 
 [dependencies]
 loom = { path = "../loom", package = "loom" }
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "6d1991cdb69bdad963257224b53c89a9c6b807f1", path = "modules/protocol", package = "ui-protocol" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "3c71534617b65cedbd45aafe12b9fb8373f52e3e", path = "modules/protocol", package = "ui-protocol" }
