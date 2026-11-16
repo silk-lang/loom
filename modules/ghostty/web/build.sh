@@ -7,11 +7,11 @@ root="$(cd "$here/../../.." && pwd)"
 
 cd "$root"
 silk build --manifest-path "$here/silk.toml" \
-  --profile-input '{"target":"wasm32-unknown-unknown","optimization":"size","debug":false}'
+  --target wasm32-unknown-unknown --optimization size --debug false
 
 rm -rf "$here/dist"
 mkdir -p "$here/dist"
-cp "$here/build/llvm/wasm32-unknown-unknown/release-size/ui-ghostty-web" "$here/dist/terminal.wasm"
+cp "$here/build/wasm32-unknown-unknown/size/ui-ghostty-web.wasm" "$here/dist/terminal.wasm"
 cp "$root/modules/loom/dom/js/silk-ui-dom.js" "$here/dist/silk-ui-dom.js"
 cp "$here/web/index.html" "$here/dist/index.html"
 echo "Built $here/dist"

@@ -6,17 +6,45 @@
 //!   extended-length path Silk passes on Windows, finds no header beside the file.
 //! - Everywhere else compiles the bridge here.
 import silk.build.plan { Plan }
+import silk.build.step { sourcePath }
 
-static fn plan() -> string<'static> {
+static fn plan() -> Plan {
   let mut plan = Plan.empty()
   static if Intrinsic.targetOperatingSystem() != "windows" {
-    plan = Plan.compileC(plan, "native/bridge.c")
-    plan = Plan.compileC(plan, "native/input.c")
+    plan = Plan.compileC(plan, sourcePath("native/bridge.c"))
+    plan = Plan.compileC(plan, sourcePath("native/input.c"))
   }
   static if Intrinsic.targetArchitecture() == "wasm32" {
-    plan = Plan.linkArchive(plan, "native/build/wasm32/libghostty-vt.a")
+    plan = Plan.linkArchive(plan, sourcePath("native/build/wasm32/libghostty-vt.a"))
+  }
+  if Intrinsic.targetOperatingSystem() == "darwin" || Intrinsic.targetOperatingSystem() == "linux" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/libghostty-vt.a"))
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/ghostty-vt-static.lib"))
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/ghostty-bridge.lib"))
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkLibrary("ucrt", "dynamic", false, false)
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/system/kernel32.lib"))
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/system/ntdll.lib"))
+  }
+  if Intrinsic.targetOperatingSystem() == "windows" {
+    plan = plan |> Plan.linkArchive(sourcePath("native/build/lib/system/vcruntime.lib"))
+  }
+  if Intrinsic.targetOperatingSystem() == "linux" {
+    plan = plan |> Plan.linkLibrary("m", "dynamic", false, false)
+  }
+  if Intrinsic.targetOperatingSystem() == "linux" {
+    plan = plan |> Plan.linkLibrary("pthread", "dynamic", false, false)
   }
   return plan
 }
 
-pub const PLAN: string = plan()
+pub const PLAN: Plan = plan()

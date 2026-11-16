@@ -29,9 +29,13 @@ pub struct Settings {
 
 impl Copy for Settings {}
 
-effect fn window(settings: Settings) -> Window ! OutOfMemoryError ? &mut Allocator {
+effect fn window(settings: Settings) -> Window
+  ! OutOfMemoryError
+  ? &mut Allocator {
   let mut window = run Window.make(settings.title, settings.width, settings.height)
-  if !settings.inspect { window.uninspected() }
+  if !settings.inspect {
+    window.uninspected()
+  }
   return move window
 }
 
@@ -42,7 +46,10 @@ effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Opti
   return run show<P, M, NoCommand, never>(run window(settings), &fonts, move platform)
 }
 
-effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32
+effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings,
+  platform: Option<Launched>,
+) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
   let window = run window(settings)
@@ -58,7 +65,10 @@ fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launche
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>) -> i32 {
+fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings,
+  platform: Option<Launched>,
+) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
   return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
@@ -69,16 +79,18 @@ fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Alloc
 pub fn main<P: Program<M, NoCommand>, M>(settings: Settings) -> i32 {
   // The main thread keeps the OS event loop; the app runs on its own thread.
   return launch(
-    fn(platform: Option<Launched>) -> i32 {
+    |platform: Option<Launched>| -> i32 {
       return app<P, M>(settings, move platform)
     },
   )
 }
 
 /// [`main`] for an app with commands `C`, which may ask the window's [`Shell`] for things.
-pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings) -> i32 {
+pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+  settings: Settings,
+) -> i32 {
   return launch(
-    fn(platform: Option<Launched>) -> i32 {
+    |platform: Option<Launched>| -> i32 {
       return appWithCommands<P, M, C>(settings, move platform)
     },
   )

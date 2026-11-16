@@ -42,7 +42,7 @@ effect fn body() -> ()
     | WindowError
   ? &mut Allocator {
   let mut work = run Background<i32>.start(
-    fn() -> i32 {
+    || -> i32 {
       return 42
     },
   )
