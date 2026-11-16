@@ -8,5 +8,5 @@ exports = ["lib", "harness"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "6afba0e7c14a824759c9a0fa9e2b0db660b2734f", path = "modules/tree", package = "ui-tree" }
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "6afba0e7c14a824759c9a0fa9e2b0db660b2734f", path = "modules/protocol", package = "ui-protocol" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "92dfd8f4de2b23433b1f052ce36d4a1b9b3e2df5", path = "modules/tree", package = "ui-tree" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "92dfd8f4de2b23433b1f052ce36d4a1b9b3e2df5", path = "modules/protocol", package = "ui-protocol" }
