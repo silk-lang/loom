@@ -43,3 +43,22 @@ test('named wire attributes preserve empty, false, replacement and removal', () 
   apply('onclick', 'bad');
   assert.equal(attributes.size, 2);
 });
+
+test('motion records preserve the generated target in the existing string payload', () => {
+  const target = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 20 }) };
+  const page = { root: target, idOf: () => 7 };
+  const writer = Page.prototype.record.call(page, 23, target, [target], {},
+    { x: 0.25, y: 0, text: 'fade', pseudoElement: '::after' });
+  const bytes = Buffer.from(writer.bytes.subarray(0, writer.at));
+  // Four strings follow the fixed event payload: key, code, motion name, pseudo target.
+  let at = 1 + 4 + 4 + 4 + 4 * 4 + 2 * 4 + 3 * 4 + 2 * 4 + 1 + 2 * 4;
+  const texts = [];
+  for (let i = 0; i < 4; ++i) {
+    const size = bytes.readUInt32LE(at);
+    at += 4;
+    texts.push(bytes.subarray(at, at + size).toString('utf8'));
+    at += size;
+  }
+  assert.deepEqual(texts, ['', '', 'fade', '::after']);
+  assert.equal(at, bytes.length);
+});

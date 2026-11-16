@@ -904,6 +904,8 @@ pub effect fn readEvent(bytes: &[u8]) -> Event
     // Transition and animation records: the name travels as the value, the elapsed time as x.
     event.name = move event.value
     event.value = String.make()
+    event.pseudoElement = move event.inputType
+    event.inputType = String.make()
     event.elapsedTime = event.x
     event.x = 0.0
   }

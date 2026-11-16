@@ -1679,7 +1679,7 @@ class Page {
     w.text(event.code ?? "");
     // Transition and animation records carry their property or @keyframes name here.
     w.text(extra.text ?? ("value" in target && typeof target.value === "string" ? target.value : ""));
-    w.text(event.inputType ?? "");
+    w.text(extra.pseudoElement ?? event.inputType ?? "");
     return w;
   }
 
@@ -1728,7 +1728,7 @@ class Page {
     on("error", (event) => event.target instanceof HTMLImageElement && this.direct(EVENT.error, event.target, event), true);
     // The elapsed time travels as x and the property or animation name as the value.
     const motion = (kind, name) => (event) =>
-      this.forward(kind, event, event.target, { x: event.elapsedTime, y: 0, text: event[name] });
+      this.forward(kind, event, event.target, { x: event.elapsedTime, y: 0, text: event[name], pseudoElement: event.pseudoElement });
     on("transitionrun", motion(EVENT.transitionRun, "propertyName"));
     on("transitionstart", motion(EVENT.transitionStart, "propertyName"));
     on("transitionend", motion(EVENT.transitionEnd, "propertyName"));
