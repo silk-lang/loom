@@ -19,9 +19,8 @@
 //! elsewhere (`placeAt`): a second program in the same tree, such as devtools drawn in the
 //! app's own process, takes a root and an id range of its own.
 import ui_protocol.css
-import ui_protocol.css { percent, Keyword, Declaration }
 import app { App, Perform, Context, Subscriptions, SubscriptionKind, Delivery }
-import diff { DiffState, diffFrom }
+import diff { DiffState, diffFrom, rootStyle }
 import windows { Windows, WindowEvent, WindowRecord }
 import journal { Journal, MODEL_LIMIT, eventName }
 import show { Printer, show, showTree }
@@ -32,8 +31,6 @@ import ui_protocol.mutation {
   FIRST_ROOT,
   NodeKind,
   StyleState,
-  FlexDirection,
-  BoxSizing,
   LISTEN_KEY_DOWN
 }
 import ui_protocol.record { Event, EventKind }
@@ -342,7 +339,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     let node = self.rootNode
     run batch.append(Mutation.Create { id: node, kind: NodeKind.Box })
     run batch.append(
-      Mutation.SetStyle { id: node, state: StyleState.Base, declarations: run rootStyle() },
+      Mutation.SetStyle { id: node, state: StyleState.Base, declarations: run rootStyle(false) },
     )
     run batch.append(
       Mutation.OpenRoot { root: self.root, node: node, options: RootOptions.default() },
@@ -673,7 +670,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
         self.nextRoot = self.nextRoot + 1
         run self.batch.append(Mutation.Create { id: node, kind: NodeKind.Box })
         run self.batch.append(
-          Mutation.SetStyle { id: node, state: StyleState.Base, declarations: run rootStyle() },
+          Mutation.SetStyle { id: node, state: StyleState.Base, declarations: run rootStyle(false) },
         )
         let mut ui = Ui<M>.make()
         ui.rootId = node
@@ -1588,19 +1585,6 @@ fn same(a: &[u8], b: &[u8]) -> bool {
     i = i + 1
   }
   return true
-}
-
-/// The style of a root box: a column filling its viewport.
-effect fn rootStyle() -> List<Declaration>
-  ! OutOfMemoryError
-  ? &mut Allocator {
-  let mut style = List<Declaration>.make()
-  run style.append(css.display(Keyword.Flex))
-  run style.append(css.flexDirection(FlexDirection.Column))
-  run style.append(css.width(percent(100.0)))
-  run style.append(css.height(percent(100.0)))
-  run style.append(css.boxSizing(BoxSizing.BorderBox))
-  return move style
 }
 
 /// The root options of declared window `record`, titled `title`.

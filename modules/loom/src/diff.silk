@@ -14,7 +14,7 @@
 //! - an entry `lazy` copied from the last render is skipped with its subtree;
 //! - last, a node that asks for focus (`takeFocus`) and did not in the last render gets it.
 import ui_protocol.css
-import ui_protocol.css { Declaration }
+import ui_protocol.css { Declaration, Keyword, percent }
 import ui_protocol.grid { Grid }
 import silk.mem.box { Box }
 import ui { Arena, Entry, Extra, Span, NO_ENTRY, ROOT_ID }
@@ -30,6 +30,8 @@ import ui_protocol.mutation {
   Role,
   Cursor,
   CanvasCommand,
+  FlexDirection,
+  BoxSizing,
   NOT_FOCUSABLE,
 }
 import silk.collections.hash { Hash, Word }
@@ -200,6 +202,22 @@ pub effect fn diffFrom<B: Backend>(
   root.id = rootId
   next.setEntry(0, root)
   run props(&next, 0, &old, root.old, rootId, &mut state, &mut out)
+  // A root box with classes leaves its display to the stylesheets (see `rootStyle`).
+  let classed = next.entryRef(0).className.length != 0
+  let wasClassed = root.old != NO_ENTRY && old.entryRef(root.old).className.length != 0
+  if classed != wasClassed {
+    let mut all = run rootStyle(classed)
+    run next.effectiveStyle(0, StyleState.Base, &mut state.newStyle)
+    let own = state.newStyle.asSlice()
+    let mut k: usize = 0
+    while k < own.length {
+      let copy = run css.cloneDeclaration(&own[k])
+      run all.append(move copy)
+      k = k + 1
+    }
+    run out.append(Mutation.ClearStyle { id: rootId, state: StyleState.Base })
+    run out.append(Mutation.SetStyle { id: rootId, state: StyleState.Base, declarations: move all })
+  }
   run children(&mut next, 0, &old, root.old, &mut state, &mut out, &mut tree)
 
   // Focus requests, once every node is in place: the last node that asks now and did not ask
@@ -747,6 +765,24 @@ fn defaultTabIndex(kind: NodeKind) -> i32 {
   } else {
     NOT_FOCUSABLE
   }
+}
+
+/// The style a root box starts from: it fills its viewport, and it is a flex column unless it
+/// has classes. A style object is the node's inline style and would win over every stylesheet
+/// rule, so a root with classes (`classed`) takes `display` and `flex-direction` from the
+/// sheets, as any other node does: `display: flex` there is a row.
+pub effect fn rootStyle(classed: bool) -> List<Declaration>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut style = List<Declaration>.make()
+  if !classed {
+    run style.append(css.display(Keyword.Flex))
+    run style.append(css.flexDirection(FlexDirection.Column))
+  }
+  run style.append(css.width(percent(100.0)))
+  run style.append(css.height(percent(100.0)))
+  run style.append(css.boxSizing(BoxSizing.BorderBox))
+  return move style
 }
 
 /// Writes the `state` style changes of entry `index` against old entry `before`.
