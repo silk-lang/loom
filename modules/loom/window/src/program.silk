@@ -34,6 +34,7 @@ pub import ui_tree.style_compiler { Compiler as StylesheetCompiler }
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
 import lib { WindowContent, runWindowHostedWithSheetUpdates, Loader }
+import keeper { Keeper }
 import loom.app { App }
 import loom.program { Program, CommandSet, Hosted, Run, make }
 import loom.runtime { Runtime }
@@ -490,6 +491,7 @@ struct ShellContent<A, M, C> {
   dialogs: List<Asked>,
   greeted: bool,
   files: List<CarriedFile>,
+  keeper: Keeper,
 }
 
 impl<A, M, C> ShellContent<A, M, C> {
@@ -704,6 +706,9 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     let state = guard.getMut()
     let mut posts = Intrinsic.replace(state.posts, List<Post>.make())
     drop guard
+
+    // The loop comes here after the messages of each turn.
+    run self.keeper.save(&app.model, app.stats.messages)
     let changed = posts.length() > 0
     while posts.length() > 0 {
       let post = posts.remove(0)
@@ -725,6 +730,8 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
   ? R | &mut Allocator {
   let mut window = move window
   let mut app = run make<P, M, C>()
+  let mut keeper = run Keeper.fromEnvironment()
+  run keeper.restore(&mut app.model)
   let options = RunOptions {
     title: window.title,
     width: window.width,
@@ -749,6 +756,7 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     dialogs: List<Asked>.make(),
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
+    keeper: move keeper,
   }
   let code = run runWindowHostedWithSheetUpdates<
     ShellContent<Hosted<P>, M, Run<C>>,
