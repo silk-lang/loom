@@ -5,17 +5,17 @@ silk-version = "0.1.0-dev.74+205aea3f5b2e"
 main = "tests.silk"
 kind = "library"
 [dependencies]
-ui_assets = { git = "https://github.com/silk-lang/silkui.git", rev = "c5324ead3e21aa25f132c50b5d161b9f94507253", path = "modules/assets", package = "ui-assets" }
+ui_assets = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/assets", package = "ui-assets" }
 loom_window = { path = "..", package = "loom-window" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "c5324ead3e21aa25f132c50b5d161b9f94507253", path = "modules/tree", package = "ui-tree" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "c5324ead3e21aa25f132c50b5d161b9f94507253", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/tree", package = "ui-tree" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
 
 loom = { path = "../..", package = "loom" }
 loom_tree = { path = "../../tree", package = "loom-tree" }
 loom_examples = { path = "../../examples", package = "loom-examples" }
 loom_inspect = { path = "../../inspect", package = "loom-inspect" }
-ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "c5324ead3e21aa25f132c50b5d161b9f94507253", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/inspect/server", package = "ui-inspect-server" }
 
-window = { git = "https://github.com/silk-lang/lib-native.git", rev = "539fa8621907ae31baac2e11dbf7a15f70ed8558", path = "modules/platform/window", package = "platform-window" }
+window = { git = "https://github.com/silk-lang/lib-native.git", rev = "030768421cb0b12c4a4ce5761040f92c82796e80", path = "modules/platform/window", package = "platform-window" }
 
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "b3c1c268a9e370b4b7253704406b903d14b5b0bc", path = "modules/collection", package = "font-collection" }
