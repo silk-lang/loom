@@ -10,5 +10,5 @@ ui_ghostty = { path = "..", package = "ui-ghostty" }
 ghostty_vt = { path = "../vt", package = "ghostty-vt" }
 loom = { path = "../../loom", package = "loom" }
 loom_tree = { path = "../../loom/tree", package = "loom-tree" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "af0b8a7015422a77dac278d0f8807a9280179b99", path = "modules/tree", package = "ui-tree" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "af0b8a7015422a77dac278d0f8807a9280179b99", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "35ea715df7d17d9566554ec0087325ba5852a0b0", path = "modules/tree", package = "ui-tree" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "35ea715df7d17d9566554ec0087325ba5852a0b0", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
