@@ -70,15 +70,10 @@ jobs:
         continue-on-error: true
         run: |
           set -x
-          bin=$(command -v silk); real=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$bin")
-          ls "$(dirname "$real")/.."
-          f=$(find "$(dirname "$real")/.." ~/.silk/toolchains -path '*stdlib/silk/system/filesystem.silk' 2>/dev/null | head -1)
-          echo "$f"
-          perl -0pi -e 's/(effect fn rejectPath\(\) -> never ! FileError \{\n)/$1  Intrinsic.trap("rejectPath")\n/' "$f"
-          grep -n -A2 'effect fn rejectPath' "$f"
-          b=$(dirname "$(dirname "$f")")/build
-          perl -pi -e 's/fail FileSystem\.error\(FileSystem\.pathOperation\(\), FileSystem\.invalidPath\(\)\)/Intrinsic.trap("build-path")\nfail FileSystem.error(FileSystem.pathOperation(), FileSystem.invalidPath())/g' "$b/fingerprint.silk" "$b/publish.silk"
-          grep -n 'build-path' "$b/fingerprint.silk" "$b/publish.silk"
+          f=$(find ~/.silk/toolchains -path '*stdlib/silk/system/filesystem.silk' | head -1)
+          perl -pi -e 's/pub fn invalidPath\(\) -> FileReason \{ return/pub fn invalidPath() -> FileReason {\n  Intrinsic.trap("invalidPath")\n  return/' "$f"
+          grep -n 'pub fn invalidPath' "$f"
+          rm -rf build ~/.silk/cache
           silk task native demo modules/loom/demo -- --build-only || true
       - name: Window demo
         run: silk task native demo modules/loom/demo -- check
