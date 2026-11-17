@@ -218,6 +218,7 @@ pub import ui_protocol.mutation {
   Clear,
   Visibility,
   Dimension,
+  SizeValue,
   DimensionKind,
   LayoutTextAlign,
   FlexDirection,
