@@ -3,7 +3,7 @@ name = "loom-components-gallery"
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 kind = "library"
-exports = ["lib", "gallery"]
+exports = ["lib", "gallery", "exhibits"]
 
 [dependencies]
 loom_components = { path = "..", package = "loom-components" }

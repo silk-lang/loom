@@ -96,6 +96,32 @@ Popups (menus, selects, popovers, dialogs, tooltips) go in the framework's overl
 `ui.anchorRect`. Focus moves into them when they open and back to their button when they close
 (`ui.takeFocus`).
 
+## Showcase
+
+`Showcase` shows components alone, one case at a time, so a component can be looked at, driven
+and captured without the app around it. Each case is an exhibit: an `Exhibits` value counts
+them, titles them ("Button / Disabled") and draws exhibit `index` with the showcase's theme.
+Callbacks report through `Shown.Acted { what: "Save pressed" }`, which the showcase shows under
+the stage. The toolbar sets the stage's width (fit, 360, 768 or 1200 points, with its edges
+dashed) and the light or dark theme.
+
+```silk
+let shown = run Showcase<ComponentExhibits>.make(ComponentExhibits {}, SANS)
+let mut app = Runtime<Showcase<ComponentExhibits>, Shown, NoCommand>.make(move shown)
+```
+
+`ComponentExhibits` (in `gallery`) has this package's components, and
+`loom-components-demo --showcase` shows them. Exhibits keep no state, so a case worth seeing
+is an exhibit of its own. Everything has a role and a name, so a headless run or an agent
+picks an exhibit as a person would and captures the stage:
+
+```sh
+# showcase.script
+click --role option --name "Checkbox / On"
+click --role button --name "360"
+screenshot --test-id stage checkbox-on.png
+```
+
 ## What the framework gained for them
 
 loom grew a few general pieces (see its README): `ui.overlay(key, body)`, `ui.anchor(key)`

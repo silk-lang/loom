@@ -767,3 +767,44 @@ test effect fn numericDraftsAndColorChannels() -> ()
     "color controls update one channel without changing alpha",
   )
 }
+
+import ui_gallery.lib { ComponentExhibits, SANS, TITLES }
+import loom_components.lib { Showcase, Shown }
+import silk.num.usize
+
+effect fn showcaseBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError
+  ? &mut Allocator {
+  let collection = run fixtures.fonts()
+  let mut tree = run UiTree.make(&collection)
+  run fonts(&mut tree)
+  let shown = run Showcase<ComponentExhibits>.make(ComponentExhibits {}, SANS)
+  run Testing.expect(shown.find("Checkbox / On") == 6 && shown.find("Nothing") == usize.MAX, "exhibits are found by title")
+  let mut app = Runtime<Showcase<ComponentExhibits>, Shown, NoCommand>.make(move shown)
+  run app.start(&mut tree, 0.0)
+
+  run Testing.expect((run roleId(&mut tree, Role.Option, TITLES[TITLES.length - 1])) != 0, "every exhibit is listed")
+  run Testing.expect((run roleId(&mut tree, Role.Button, "Save")) != 0, "the first exhibit is on the stage")
+  drop run clickRole(&mut app, &mut tree, viewport(), Role.Button, "Save")
+  drop run clickRole(&mut app, &mut tree, viewport(), Role.Button, "Save")
+  run Testing.expect(app.model.times == 2 && app.model.acted == "Save pressed", "reports are counted")
+  let report = run snapshot(&mut tree, viewport())
+  run Testing.expect(contains(String.view(&report), "Save pressed"), "and shown")
+
+  drop run clickRole(&mut app, &mut tree, viewport(), Role.Option, "Checkbox / On")
+  run Testing.expect(app.model.chosen == 6 && app.model.times == 0, "a click picks an exhibit")
+  let box = run roleId(&mut tree, Role.Checkbox, "Email me about replies")
+  run Testing.expect(box != 0 && (run lineHas(&mut tree, box, "checked")), "the stage shows it")
+  run Testing.expect((run roleId(&mut tree, Role.Button, "Save")) == 0, "and only it")
+
+  drop run clickRole(&mut app, &mut tree, viewport(), Role.Button, "360")
+  run Testing.expect(app.model.width == 1, "a width is picked")
+  drop run clickRole(&mut app, &mut tree, viewport(), Role.Button, "Dark")
+  run Testing.expect(app.model.dark && (run roleId(&mut tree, Role.Button, "Light")) != 0, "the theme turns dark, and back is offered")
+}
+
+test effect fn showcaseShowsOneExhibitAtATime() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run showcaseBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}

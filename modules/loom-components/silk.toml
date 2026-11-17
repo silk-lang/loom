@@ -4,7 +4,7 @@ description = "Loom Components: components for Loom views: buttons, fields, list
 version = "0.1.0"
 silk-version = "0.1.0-dev.74+205aea3f5b2e"
 kind = "library"
-exports = ["lib", "theme", "layout", "button", "choice", "slider", "field", "list", "tabs", "menu", "dialog", "popover", "numeric", "color", "placement"]
+exports = ["lib", "theme", "layout", "button", "choice", "slider", "field", "list", "tabs", "menu", "dialog", "popover", "numeric", "color", "placement", "showcase"]
 
 [dependencies]
 loom = { path = "../loom", package = "loom" }
