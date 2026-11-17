@@ -10,6 +10,6 @@ exports = ["app", "gpu"]
 [dependencies]
 loom = { path = "../../../loom", package = "loom" }
 loom_window = { path = "../../../loom/window", package = "loom-window" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "08146a7840fd42867ba236b8346cdd79002fca97", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
-webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "c55128b1813981384f284614988568c92dbdb11d", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
-webgpu_sys = { git = "https://github.com/silk-lang/lib-native.git", rev = "c55128b1813981384f284614988568c92dbdb11d", path = "modules/gpu/webgpu/sys", package = "gpu-webgpu-sys" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "74dd232f1ad1bd5f7675cdaa2899afba81760a9f", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "56384899c345b81471ecbb4ae9f9dd79cb8358f7", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
+webgpu_sys = { git = "https://github.com/silk-lang/lib-native.git", rev = "56384899c345b81471ecbb4ae9f9dd79cb8358f7", path = "modules/gpu/webgpu/sys", package = "gpu-webgpu-sys" }
