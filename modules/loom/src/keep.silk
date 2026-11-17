@@ -974,6 +974,15 @@ effect fn restoreInto<T>(into: &mut T, saved: &Value, report: &mut Restored) -> 
   }
 }
 
+/// Writes `saved`, a value [`write`] wrote and since parsed, onto `into` (see [`restore`]).
+pub effect fn restoreValue<T>(into: &mut T, saved: &Value) -> Restored
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut report = Restored.make()
+  run restoreInto(&mut into, saved, &mut report)
+  return move report
+}
+
 /// Writes the model saved in `saved` (what [`encode`] made) onto `into`, field by field. What
 /// the report names kept the value it had.
 pub effect fn restore<T>(into: &mut T, saved: &[u8]) -> Restored

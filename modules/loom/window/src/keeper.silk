@@ -2,11 +2,16 @@
 //! edit. silkui's watcher names the file in `SILKUI_KEEP`; a release build never keeps one.
 //!
 //! The model is saved after the messages of each turn of the window's loop, and put back onto
-//! the model `init` makes when the program starts again (see `loom.keep`).
-import loom.keep { encode, restore }
+//! the model `init` makes when the program starts again (see `loom.keep`). The window's size
+//! is kept with it. The file is `{"window": {"width", "height"}, "model": ...}`.
+import loom.keep { write, restoreValue }
+import silk.core.result { Result }
+import silk.json.scanner { JsonError }
+import silk.json.value { Json, Value }
 import ui_tree_window.host { environmentVariable }
 import ui_inspect_server.server { debugBuild }
 import silk.core.option { Option }
+import silk.geometry.size { Size2 }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.text.string { String }
 
@@ -18,6 +23,11 @@ pub struct Keeper {
   /// The message count of the model last saved.
   saved: u64,
   last: String,
+  /// The window's content size in logical points, 0 until known.
+  width: f64,
+  height: f64,
+  savedWidth: f64,
+  savedHeight: f64,
 }
 
 static if Intrinsic.targetArchitecture() != "wasm32" {
@@ -61,7 +71,19 @@ static if Intrinsic.targetArchitecture() != "wasm32" {
 
 impl Keeper {
   pub fn off() -> Keeper {
-    return Keeper { path: String.make(), saved: 0, last: String.make() }
+    return Keeper.at(String.make())
+  }
+
+  fn at(path: String) -> Keeper {
+    return Keeper {
+      path: move path,
+      saved: 0,
+      last: String.make(),
+      width: 0.0,
+      height: 0.0,
+      savedWidth: 0.0,
+      savedHeight: 0.0,
+    }
   }
 
   /// Keeps the model in the file `SILKUI_KEEP` names, in a debug build.
@@ -75,7 +97,7 @@ impl Keeper {
         return Keeper.off()
       }
       return match move run environmentVariable(VARIABLE) {
-        Option<String>.Some { value } => Keeper { path: move value, saved: 0, last: String.make() }
+        Option<String>.Some { value } => Keeper.at(move value)
         Option<String>.None => Keeper.off()
       }
     }
@@ -86,7 +108,7 @@ impl Keeper {
   }
 
   /// Puts the saved model, if there is one, onto `model`, and says on standard error what
-  /// started over.
+  /// started over. [`size`] has the saved window size after it.
   pub effect fn restore<P>(self: &mut Self, model: &mut P) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
@@ -103,8 +125,28 @@ impl Keeper {
           return ()
         }
       }
-      let report = run restore(&mut model, bytes.asSlice())
-      self.last = run String.copy(String.fromUtf8(bytes.asSlice()).unwrapOr(""))
+      let document = match move run Effect.result(Json.parse(bytes.asSlice())) {
+        Result<Value, JsonError | OutOfMemoryError>.Success { value } => move value
+        Result<Value, JsonError | OutOfMemoryError>.Failure { error } => {
+          drop error
+          return StderrWriter.print(
+            "loom: the kept model could not be read; starting from init\n",
+            &(),
+          )
+        }
+      }
+      let window = Json.field(&document, "window")
+      self.width = Json.asF64(Json.fieldAt(window, "width")) |> Option<f64>.unwrapOr(0.0)
+      self.height = Json.asF64(Json.fieldAt(window, "height")) |> Option<f64>.unwrapOr(0.0)
+      self.savedWidth = self.width
+      self.savedHeight = self.height
+      let kept = match Json.field(&document, "model") {
+        Option<&Value>.Some { value } => value
+        Option<&Value>.None => {
+          return ()
+        }
+      }
+      let report = run restoreValue(&mut model, kept)
       if report.whole() {
         return StderrWriter.print("loom: kept the model across the restart\n", &())
       }
@@ -125,16 +167,40 @@ impl Keeper {
     }
   }
 
-  /// Saves `model` when messages were handled since the last save (`messages` counts them).
+  /// The window size the last run ended with, if it was saved.
+  pub fn size(self: &Self) -> Option<Size2<f64>> {
+    if self.width <= 0.0 || self.height <= 0.0 {
+      return Option<Size2<f64>>.None
+    }
+    return Option<Size2<f64>>.some(Size2<f64> { width: self.width, height: self.height })
+  }
+
+  /// The window's content changed size.
+  pub fn resized(self: &mut Self, width: f64, height: f64) -> () {
+    self.width = width
+    self.height = height
+  }
+
+  /// Saves `model` and the window size when messages were handled (`messages` counts them) or
+  /// the window was resized since the last save.
   pub effect fn save<P>(self: &mut Self, model: &P, messages: u64) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
     static if Intrinsic.targetArchitecture() != "wasm32" {
-      if !self.on() || messages == self.saved {
+      let resized = self.width != self.savedWidth || self.height != self.savedHeight
+      if !self.on() || (messages == self.saved && !resized) {
         return ()
       }
       self.saved = messages
-      let text = run encode(model)
+      self.savedWidth = self.width
+      self.savedHeight = self.height
+      let mut text = run String.copy("{\"window\":{\"width\":")
+      run write(&self.width, &mut text)
+      run text.append(",\"height\":")
+      run write(&self.height, &mut text)
+      run text.append("},\"model\":")
+      run write(model, &mut text)
+      run text.append("}")
       if String.view(&text) == String.view(&self.last) {
         return ()
       }

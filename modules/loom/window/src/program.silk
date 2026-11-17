@@ -715,6 +715,9 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     ! WindowError | TreeError | AtlasError | GeometryError | OutOfMemoryError
     ? &mut Allocator {
     match &event.* {
+      Event.Resized { size, .. } => {
+        self.keeper.resized(size.width, size.height)
+      }
       Event.MenuAction { action } => {
         let mut text = String.make()
         run decimal(&mut text, action)
@@ -912,6 +915,10 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
   let mut app = run make<P, M, C>()
   let mut keeper = run Keeper.fromEnvironment()
   run keeper.restore(&mut app.model)
+  if let Option<Size2<f64>>.Some { value } = keeper.size() {
+    window.width = value.width
+    window.height = value.height
+  }
   let options = RunOptions {
     title: window.title,
     width: window.width,
