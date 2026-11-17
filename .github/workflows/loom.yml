@@ -66,35 +66,6 @@ jobs:
         run: silk task setup-ci
       - name: Window host tests
         run: silk test --manifest-path modules/loom/window/tests/silk.toml --root src/tests.silk
-      - name: Diagnose graph builds (temporary)
-        continue-on-error: true
-        run: |
-          silk task native demo modules/loom/demo -- --build-only || true
-          find build/steps -name trees.json -exec sh -c 'echo "== $1"; cat "$1"; echo' _ {} \;
-          find build/steps -name files.json -exec sh -c 'echo "== $1"; head -c 3000 "$1"; echo' _ {} \;
-          python3 - "$SDKROOT" <<'PY'
-          import os, sys
-          top = sys.argv[1]
-          root = os.path.realpath(top)
-          count = 0
-          def visit(path, ancestors):
-              global count
-              count += 1
-              real = os.path.realpath(path)
-              if not (real == root or real.startswith(root.rstrip("/") + "/")):
-                  print("ESCAPE", path, "->", real, os.readlink(path) if os.path.islink(path) else "")
-                  return True
-              if real in ancestors:
-                  print("CYCLE", path, "->", real)
-                  return True
-              if os.path.isdir(path):
-                  for name in sorted(os.listdir(path)):
-                      if visit(os.path.join(path, name), ancestors | {real}):
-                          return True
-              return False
-          found = visit(top, frozenset())
-          print("walked", count, "entries; violation" if found else "entries; clean")
-          PY
       - name: Window demo
         run: silk task native demo modules/loom/demo -- check
       - name: Devtools
