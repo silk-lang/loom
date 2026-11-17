@@ -104,6 +104,7 @@ union Op {
   Transition { text: Span },
   Element { text: Span },
   ClassName { text: Span },
+  ClassAdd { text: Span },
   NamedAttribute { name: Span, value: Span },
   CustomProperty { state: StyleState, name: Span, value: Span, important: bool },
   ElementId { text: Span },
@@ -202,6 +203,21 @@ impl Tree {
     let start = usize.toU32(self.bytes.length())
     self.heap.alloc(self.bytes.appendSlice(bytes))
     return Span { start: start, length: usize.toU32(bytes.length) }
+  }
+
+  /// The strings joined by single spaces, empty ones left out.
+  fn storeJoined(self: &mut Self, values: &[string]) -> Span {
+    let start = usize.toU32(self.bytes.length())
+    let mut at: usize = 0
+    while at < values.length {
+      let bytes = String.utf8Bytes(values[at])
+      if bytes.length != 0 {
+        if usize.toU32(self.bytes.length()) != start { self.heap.alloc(self.bytes.append(32)) }
+        self.heap.alloc(self.bytes.appendSlice(bytes))
+      }
+      at = at + 1
+    }
+    return Span { start: start, length: usize.toU32(self.bytes.length()) - start }
   }
 
   fn text(self: &Self, span: Span) -> string {
@@ -916,9 +932,32 @@ impl<M> Document<M> {
     return self.op(Op.Element { text: self.store(name) })
   }
 
-  /// The node's classes, as the HTML `class` attribute, so a page's stylesheets apply to it in
-  /// a document backend. The native tree retains it for selector matching.
-  pub fn class(self: &Self, value: string) -> Attr { return self.className(value) }
+  /// Adds CSS classes to the node: `h.class("flex gap-2")`. Several class attributes on one
+  /// node add up, in order. Stylesheets match them on every backend.
+  pub fn class(self: &Self, value: string) -> Attr {
+    return self.op(Op.ClassAdd { text: self.store(value) })
+  }
+
+  /// Adds every class string in the list: `h.classes(&["card", "p-4 rounded-xl"])`.
+  pub fn classes(self: &Self, values: &[string]) -> Attr {
+    let mut anchor: u8 = 0
+    let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
+    let text = tree.storeJoined(values)
+    return tree.op(Op.ClassAdd { text: text })
+  }
+
+  /// Adds the classes while `when` holds: `h.classWhen(chosen, "border-teal-700 bg-teal-50")`.
+  pub fn classWhen(self: &Self, when: bool, value: string) -> Attr {
+    if when { return self.class(value) }
+    return self.none()
+  }
+
+  /// Adds `on` while `when` holds and `off` otherwise:
+  /// `h.classSelect(chosen, "bg-teal-50", "bg-white hover:border-gray-500")`.
+  pub fn classSelect(self: &Self, when: bool, on: string, off: string) -> Attr {
+    if when { return self.class(on) }
+    return self.class(off)
+  }
 
   /// A literal data/ARIA attribute, shared by native and document backends.
   pub fn customProperty(self: &Self, name: string, value: string) -> Attr {
@@ -933,6 +972,7 @@ impl<M> Document<M> {
     return self.op(Op.NamedAttribute { name: self.store(name), value: self.store(value) })
   }
 
+  /// Replaces the node's classes, as assigning the HTML `class` attribute does.
   pub fn className(self: &Self, value: string) -> Attr {
     return self.op(Op.ClassName { text: self.store(value) })
   }
@@ -1272,6 +1312,9 @@ fn apply<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, start: u32, count
       Op.CustomProperty { state, name, value, important } => { ui.customPropertyFor(state, tree.text(name), tree.text(value), important) }
       Op.ClassName { text } => {
         ui.className(tree.text(text))
+      }
+      Op.ClassAdd { text } => {
+        ui.class(tree.text(text))
       }
       Op.ElementId { text } => {
         ui.elementId(tree.text(text))

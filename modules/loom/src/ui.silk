@@ -2660,8 +2660,38 @@ impl<M> Ui<M> {
     }
   }
 
-  /// CSS classes on native and document backends.
-  pub fn class(self: &mut Self, value: string) -> () { self.className(value) }
+  /// Adds CSS classes to the open node, after the ones it has: `ui.class("flex gap-2")`.
+  pub fn class(self: &mut Self, value: string) -> () {
+    if self.dispatching || String.utf8Bytes(value).length == 0 { return () }
+    let previous = self.arena.entryRef(self.current).className
+    if previous.length == 0 { self.className(value) return () }
+    let mut joined = List<u8>.make()
+    self.heap.alloc(joined.appendSlice(self.arena.text(previous)))
+    self.heap.alloc(joined.append(32))
+    self.heap.alloc(joined.appendSlice(String.utf8Bytes(value)))
+    let span = self.store(joined.asSlice())
+    let entry = self.arena.entryMut(self.current)
+    entry.className = span
+  }
+
+  /// Adds every class string in the list.
+  pub fn classes(self: &mut Self, values: &[string]) -> () {
+    let mut at: usize = 0
+    while at < values.length {
+      self.class(values[at])
+      at = at + 1
+    }
+  }
+
+  /// Adds the classes while `when` holds: `ui.classWhen(model.open, "ring-2")`.
+  pub fn classWhen(self: &mut Self, when: bool, value: string) -> () {
+    if when { self.class(value) }
+  }
+
+  /// Adds `on` while `when` holds and `off` otherwise.
+  pub fn classSelect(self: &mut Self, when: bool, on: string, off: string) -> () {
+    if when { self.class(on) } else { self.class(off) }
+  }
 
   /// The CSS id, independent of the runtime's numeric node id.
   pub fn id(self: &mut Self, value: string) -> () { self.elementId(value) }
@@ -2719,8 +2749,8 @@ impl<M> Ui<M> {
     extra.attributes = span
   }
 
-  /// The open node's classes, as the HTML `class` attribute (`"btn btn-primary"`), so the
-  /// page's stylesheets apply to it in a document backend. The native tree retains it for selector matching.
+  /// Replaces the open node's classes, as assigning the HTML `class` attribute does
+  /// (`"btn btn-primary"`). A document backend's stylesheets and the native tree's match them.
   pub fn className(self: &mut Self, value: string) -> () {
     if !self.dispatching {
       let span = self.store(String.utf8Bytes(value))

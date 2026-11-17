@@ -356,7 +356,22 @@ and event handlers remain part of the view. The anchor key must exist in that vi
 `ui.class("flex gap-2")`, `ui.id("toolbar")`, and
 `ui.attribute("data-state", "open")` set selector identity on the open node.
 The document API has the same helpers: `h.class(...)`, `h.id(...)`, and
-`h.attribute(name, value)`. Existing `className` and `elementId` helpers remain.
+`h.attribute(name, value)`.
+
+Class helpers add up in order, so a node can take its classes in pieces:
+
+```silk
+h.box(&[
+  h.class("rounded-xl border p-4"),
+  h.classWhen(model.busy, "opacity-50"),
+  h.classSelect(chosen, "border-teal-700 bg-teal-50", "border-gray-300 bg-white"),
+  h.classes(&[CARD, SPACING]),
+], children)
+```
+
+`classWhen` adds its classes while the condition holds, `classSelect` adds one of two
+strings, and `classes` adds every string of a list. `className` replaces whatever the
+node has so far, as assigning the HTML attribute does. `ui` has the same four.
 
 Named attributes support `data-*`, `aria-*`, `lang`, and `dir`. Empty strings
 remain present; omitting an attribute in the next view removes it. Repeated

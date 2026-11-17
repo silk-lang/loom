@@ -191,9 +191,11 @@ impl Program<Flip, NoCommand> for SelectorView {
   }
   fn view(model: &SelectorView, h: &Document<Flip>) -> Node {
     if model.on {
-      return h.column(&[h.class("button"), h.id("toggle"), h.attribute("data-state", "closed")], &[])
+      return h.column(&[h.class("button"), h.classWhen(!model.on, "primary"), h.classSelect(model.on, "closed", "open"),
+        h.classes(&["wide", "", "tall dense"]), h.id("toggle"), h.attribute("data-state", "closed")], &[])
     }
-    return h.column(&[h.class("button primary"), h.id("toggle"),
+    return h.column(&[h.class("button"), h.classWhen(!model.on, "primary"), h.classSelect(model.on, "closed", "open"),
+      h.classes(&["wide", "", "tall dense"]), h.id("toggle"),
       h.attribute("data-state", "ignored"), h.attribute("data-state", "open"),
       h.attribute("data-empty", ""), h.attribute("aria-expanded", "false")], &[])
   }
@@ -206,13 +208,13 @@ effect fn literalBody() -> ()
   run app.start(&mut page, 0.0)
   run drain(&mut app, &mut page)
   let first = run page.markup()
-  run Testing.expect(has(first.asSlice(), "class=\"button primary\"") && has(first.asSlice(), "id=\"toggle\""), "class and id helpers reach markup")
+  run Testing.expect(has(first.asSlice(), "class=\"button primary open wide tall dense\"") && has(first.asSlice(), "id=\"toggle\""), "class helpers add up in order and reach markup with the id")
   run Testing.expect(has(first.asSlice(), "data-state=\"open\"") && !has(first.asSlice(), "ignored"), "last named assignment wins")
   run Testing.expect(has(first.asSlice(), "data-empty=\"\"") && has(first.asSlice(), "aria-expanded=\"false\""), "empty and false remain present")
   app.send(Flip.Flip)
   run drain(&mut app, &mut page)
   let second = run page.markup()
-  run Testing.expect(has(second.asSlice(), "class=\"button\"") && has(second.asSlice(), "data-state=\"closed\""), "changed attributes replace previous values")
+  run Testing.expect(has(second.asSlice(), "class=\"button closed wide tall dense\"") && has(second.asSlice(), "data-state=\"closed\""), "changed attributes replace previous values")
   run Testing.expect(!has(second.asSlice(), "data-empty") && !has(second.asSlice(), "aria-expanded"), "omitted named attributes are removed")
   app.send(Flip.Flip)
   run drain(&mut app, &mut page)
