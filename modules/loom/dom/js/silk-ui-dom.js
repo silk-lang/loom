@@ -60,12 +60,13 @@ const STATES = [null, ":hover", ":active", ":focus", ":focus-visible", ""];
 const STATE_ORDER = [5, 1, 3, 4, 2];
 const STARTING = 5;
 
-// The same rules as `RESET` in `src/html.silk`, which a server render carries. `:where` gives
-// them no specificity, so the page's own stylesheets win. A pseudo-element rule that matches
+// The same rules as `RESET` in `src/html.silk`, which a server render carries. They sit in a
+// cascade layer that is declared before any other, so the page's own stylesheets win whether
+// they use layers (as Tailwind's output does) or not; `:where` also gives them no specificity. A pseudo-element rule that matches
 // every element makes the browser style that pseudo-element for each one, which costs about a
 // third more style and layout time on a large table: `::selection` only matches the nodes that
 // set a selection color (their descendants inherit it), `::placeholder` only inputs.
-const RESET = `
+const RESET = `@layer silk-reset {
 :where([data-silk]) { outline: none; border-width: 0; -webkit-tap-highlight-color: transparent; }
 :where([data-silk][role="button"]) { user-select: none; -webkit-user-select: none; }
 :where(a[data-silk]) { display: block; color: inherit; text-decoration: none; }
@@ -80,7 +81,7 @@ const RESET = `
 }
 :where([style*="--silk-selection-color"])::selection { background: var(--silk-selection-color, highlight); }
 :where(input[data-silk], textarea[data-silk])::placeholder { color: var(--silk-placeholder-color, gray); opacity: 1; }
-`;
+}`;
 
 const FOCUSABLE =
   '[tabindex]:not([tabindex="-1"]), input:not([tabindex="-1"]), textarea:not([tabindex="-1"]), a[href]:not([tabindex="-1"])';
@@ -490,7 +491,8 @@ class Page {
 
     const reset = document.createElement("style");
     reset.textContent = RESET;
-    document.head.append(reset);
+    // First in the document, so its layer is the lowest: layers rank in order of appearance.
+    document.head.prepend(reset);
     this.sheets = STATES.map(() => null);
     for (const state of STATE_ORDER) {
       const style = document.createElement("style");
