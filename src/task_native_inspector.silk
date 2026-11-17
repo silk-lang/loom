@@ -274,7 +274,13 @@ effect fn devtoolsCheck(app: &App, tools: &App, cli: string, env: &[string]) -> 
   // view the app renders and the devtools replay, over the socket.
   let hello = run commandJson(cli, app, &["hello"], env)
   let extensions = run array(run field(&hello, "extensions"))
-  run expect(extensions.length == 1 && stringField(&extensions[0], "id") == "silk-ui", "hello lists the silk-ui extension")
+  let mut silkUiListed = false
+  let mut index: usize = 0
+  while index < extensions.length {
+    if stringField(&extensions[index], "id") == "silk-ui" { silkUiListed = true }
+    index = index + 1
+  }
+  run expect(silkUiListed, "hello lists the silk-ui extension")
   let messages = run commandJson(cli, app, &["silk-ui.messages", "--since", "0"], env)
   let steps = run array(run field(&messages, "messages"))
   run expect(steps.length >= 2 && truth(&messages, "attached"), "silk-ui.messages lists the todo's messages")

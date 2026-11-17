@@ -86,6 +86,11 @@ static if Intrinsic.targetArchitecture() != "wasm32" {
     ? &mut Allocator {
     let bytes = String.utf8Bytes(text)
     static if Intrinsic.targetOperatingSystem() == "windows" {
+      // `/C:/...` is already a portable path (what `Path.view` gives); `C:\...` and `\\server`
+      // are Windows names.
+      if bytes.length > 1 && bytes[0] == 47 && bytes[1] != 47 {
+        return run Path.make(text)
+      }
       if (bytes.length > 1 && bytes[1] == 58) || (bytes.length > 0 && (bytes[0] == 92 || bytes[0] == 47)) {
         return run WindowsPath.fromNativeBytes(bytes)
       }
