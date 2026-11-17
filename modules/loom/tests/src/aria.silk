@@ -388,3 +388,43 @@ test effect fn runtimeStylesheetsReachMarkupAndDomWire() -> ()
   let mut allocator = Allocator.systemAllocatorProvider()
   run runtimeSheetsBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
+
+struct TopView { on: bool }
+type TopNext = Update<TopView, NoCommand, NoOutput>
+impl Program<Flip, NoCommand> for TopView {
+  effect fn init() -> TopNext ! OutOfMemoryError ? &mut Allocator {
+    return TopNext.of(TopView { on: false })
+  }
+  effect fn update(mut model: TopView, message: Flip) -> TopNext ! OutOfMemoryError ? &mut Allocator {
+    drop message
+    model.on = !model.on
+    return TopNext.of(move model)
+  }
+  fn view(model: &TopView, h: &Document<Flip>) -> Node {
+    return h.box(&[h.classWhen(model.on, "cards")], &[])
+  }
+}
+
+effect fn topBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError ? &mut Allocator {
+  let mut page = Html.make()
+  let mut app = run program.make<TopView, Flip, NoCommand>()
+  run app.start(&mut page, 0.0)
+  run drain(&mut app, &mut page)
+  let plain = run page.markup()
+  run Testing.expect(has(plain.asSlice(), "flex-direction") && has(plain.asSlice(), "box-sizing"), "a top node without classes is a column filling its viewport")
+  app.send(Flip.Flip)
+  run drain(&mut app, &mut page)
+  let classed = run page.markup()
+  run Testing.expect(!has(classed.asSlice(), "flex-direction") && has(classed.asSlice(), "box-sizing"), "with classes it leaves display to the stylesheets and still fills its viewport")
+  app.send(Flip.Flip)
+  run drain(&mut app, &mut page)
+  let again = run page.markup()
+  run Testing.expect(has(again.asSlice(), "flex-direction"), "and it is a column again once the classes go")
+}
+
+test effect fn aClassedTopNodeLeavesDisplayToStylesheets() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run topBody() |> Effect.provideMut<Allocator>(&mut allocator)
+}

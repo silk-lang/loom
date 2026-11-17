@@ -36,19 +36,19 @@ runs:
     - if: runner.os != 'Windows'
       shell: bash
       env:
-        SILK_RELEASE: v0.1.0-pipeline.1
+        SILK_RELEASE: v0.1.0-dev.85+45b9e51824ca
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        curl --fail --location https://raw.githubusercontent.com/silk-lang/silk/bf7450df2216/install.sh --output "$RUNNER_TEMP/install-silk.sh"
+        curl --fail --location https://raw.githubusercontent.com/silk-lang/silk/45b9e51824caef8cca871303c1ce19587da0533b/install.sh --output "$RUNNER_TEMP/install-silk.sh"
         sh "$RUNNER_TEMP/install-silk.sh"
         echo "$HOME/.silk/bin" >> "$GITHUB_PATH"
     - if: runner.os == 'Windows'
       shell: pwsh
       env:
-        SILK_RELEASE: v0.1.0-pipeline.1
+        SILK_RELEASE: v0.1.0-dev.85+45b9e51824ca
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        Invoke-WebRequest https://raw.githubusercontent.com/silk-lang/silk/bf7450df2216/install.ps1 -OutFile "$env:RUNNER_TEMP/install-silk.ps1"
+        Invoke-WebRequest https://raw.githubusercontent.com/silk-lang/silk/45b9e51824caef8cca871303c1ce19587da0533b/install.ps1 -OutFile "$env:RUNNER_TEMP/install-silk.ps1"
         & "$env:RUNNER_TEMP/install-silk.ps1"
         "$env:USERPROFILE/.silk/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - shell: bash

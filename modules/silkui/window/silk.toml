@@ -2,7 +2,7 @@
 name = "silkui-window-loom"
 description = "What the hosts silkui generates for a Loom app in a window run"
 version = "0.1.0"
-silk-version = "0.1.0-pipeline.1"
+silk-version = "0.1.0-dev.85+45b9e51824ca"
 kind = "library"
 main = "app.silk"
 exports = ["app"]
