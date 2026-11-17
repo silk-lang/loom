@@ -7,7 +7,7 @@ import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets 
 //! import silkui_window_loom.app { Settings, TitleBar, main as loom }
 //!
 //! pub fn main() -> i32 {
-//!   return loom<Model, Message>(Settings { title: "My app", width: 900.0, height: 600.0, titleBar: TitleBar.Standard, titleBarHeight: 0.0, inspect: true })
+//!   return loom<Model, Message>(Settings { title: "My app", width: 900.0, height: 600.0, titleBar: TitleBar.Standard, titleBarHeight: 0.0, controlsLeft: 0.0, controlsTop: 0.0, inspect: true })
 //! }
 //! ```
 import loom.app { NoCommand }
@@ -23,13 +23,16 @@ import silk.mem.allocator { Allocator, OutOfMemoryError }
 
 /// The window an app opens, and whether a debug build serves the inspector when
 /// `SILK_UI_INSPECT` is set (the development host) or never does (the release host).
-/// `titleBar` and `titleBarHeight` are `Window.withTitleBar`'s.
+/// `titleBar` and `titleBarHeight` are `Window.withTitleBar`'s, `controlsLeft` and
+/// `controlsTop` `Window.withControls`'s.
 pub struct Settings {
   pub title: string<'static>,
   pub width: f64,
   pub height: f64,
   pub titleBar: TitleBar,
   pub titleBarHeight: f64,
+  pub controlsLeft: f64,
+  pub controlsTop: f64,
   pub inspect: bool,
 }
 
@@ -38,6 +41,7 @@ impl Copy for Settings {}
 effect fn window(settings: Settings, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> Window ! OutOfMemoryError ? &mut Allocator {
   let mut window = run Window.make(settings.title, settings.width, settings.height)
   window.withTitleBar(settings.titleBar, settings.titleBarHeight)
+  window.withControls(settings.controlsLeft, settings.controlsTop)
   window.withStylesheetCompiler(compiler)
   window.withStyleSheets(move sheets)
   window.withStyleSheetUpdates(move updates)
