@@ -76,18 +76,22 @@ jobs:
           #!/bin/bash
           here=$(cd "$(dirname "$0")" && pwd)
           case "$1" in
-            graph|resolve|compile)
+            graph)
               echo "::group::silkc $1"
-              cp "$3" "$RUNNER_TEMP/silkc-$1-$(basename "$3")"
-              python3 - "$3" <<'PY'
-          import re, sys
-          for value in sorted(set(re.findall(r'"([^"]*/[^"]*)"', open(sys.argv[1]).read()))):
-              odd = value != "/" and (value.endswith("/") or "//" in value or re.search(r"(^|/)\.\.?(/|$)", value) or not value.startswith("/"))
-              print(("ODD  " if odd else "path ") + value)
-          PY
+              nm "$here/silkc.real" 2>/dev/null | grep -i -E "rejectPath|invalidPath|canonical" | head -20
               sudo DevToolsSecurity -enable >/dev/null 2>&1 || true
-              lldb --batch -o "breakpoint set -r 'rejectPath|invalidPath'" -o run -o "bt 40" -o kill -- "$here/silkc.real" "$@" || true
+              lldb --batch -o "settings set target.arg0 $here/silkc" -o "breakpoint set -r 'rejectPath|invalidPath'" -o run -o "bt 40" -o kill -- "$here/silkc.real" "$@" || true
+              sudo fs_usage -w -f pathname > "$RUNNER_TEMP/silkc-fs_usage.txt" 2>&1 &
+              watcher=$!
+              sleep 3
+              (exec -a "$0" "$here/silkc.real" "$@")
+              status=$?
+              sleep 2
+              sudo kill "$watcher" || true
+              sleep 1
+              grep -a "silkc" "$RUNNER_TEMP/silkc-fs_usage.txt" | grep -a -v -E "dyld|/System/|/usr/lib" | tail -120
               echo "::endgroup::"
+              exit "$status"
               ;;
           esac
           exec -a "$0" "$here/silkc.real" "$@"
