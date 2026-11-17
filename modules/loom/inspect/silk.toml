@@ -8,6 +8,6 @@ exports = ["lib", "program", "panel", "extension"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "401469d3b0a5f114a9d651983a3ac1849ef52d06", path = "modules/tree", package = "ui-tree" }
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "401469d3b0a5f114a9d651983a3ac1849ef52d06", path = "modules/protocol", package = "ui-protocol" }
-ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "401469d3b0a5f114a9d651983a3ac1849ef52d06", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "22f8d2ccbfd083432a5f2a01c927f641dcccb8d0", path = "modules/tree", package = "ui-tree" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "22f8d2ccbfd083432a5f2a01c927f641dcccb8d0", path = "modules/protocol", package = "ui-protocol" }
+ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "22f8d2ccbfd083432a5f2a01c927f641dcccb8d0", path = "modules/inspect/server", package = "ui-inspect-server" }
