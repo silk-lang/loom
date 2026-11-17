@@ -67,9 +67,8 @@ import window.keys { KeyCode, keyCodeFromValue }
 import window.shell { Notification, Tray as TrayOptions, TrayIcon }
 import ui_tree_window.keys { codeName }
 import window.menu { MenuBar, Shortcut, ShortcutKey, SystemItem, OpenDialog, SaveDialog }
-// Interface methods resolve through this import; silk#2819 reports it as unused.
-import window.platform { Platform as _Platform }
-import window.types { WindowError, WindowId, Appearance }
+import window.platform { Platform }
+import window.types { WindowError, WindowId, WindowOptions, Appearance }
 import webgpu.runtime { GpuError }
 import silk.collections.list { List }
 import silk.concurrency.sync { Arc, Mutex }
@@ -148,11 +147,14 @@ fn wake(desk: &Arc<Mutex<Desk>>) -> () {
 /// The window a program opens: its title and size, its fonts, and its [`Shell`].
 pub import ui_tree.style_assets { StyleAssets }
 pub import ui_tree_window.style_watch { SheetWatch }
+pub import window.types { TitleBar }
 
 pub struct Window {
   title: string<'static>,
   width: f64,
   height: f64,
+  titleBar: TitleBar,
+  titleBarHeight: f64,
   resources: Batch,
   stylesheetCompiler: StylesheetCompiler,
   stylesheets: StyleAssets,
@@ -184,6 +186,8 @@ impl Window {
       title: title,
       width: width,
       height: height,
+      titleBar: TitleBar.Standard,
+      titleBarHeight: 0.0,
       resources: Batch.make(),
       stylesheetCompiler: StylesheetCompiler.off(),
       stylesheets: StyleAssets.make(),
@@ -232,6 +236,15 @@ impl Window {
     ! OutOfMemoryError
     ? &mut Allocator {
     run self.files.append(CarriedFile { path: path, data: data })
+  }
+
+  /// How the title bar is drawn. `TitleBar.Transparent` puts the program under the bar on
+  /// macOS, with the window controls over it; other systems keep their bar. `height` is the
+  /// bar the program draws at its top: the controls are centred in it, a press in it moves
+  /// the window, and the program gets no pointer presses there.
+  pub fn withTitleBar(self: &mut Self, titleBar: TitleBar, height: f64) -> () {
+    self.titleBar = titleBar
+    self.titleBarHeight = height
   }
 
   /// Does not serve the inspector, even in a debug build with `SILK_UI_INSPECT` set.
@@ -571,6 +584,10 @@ struct ShellContent<A, M, C> {
   greeted: bool,
   files: List<CarriedFile>,
   keeper: Keeper,
+  titleBar: TitleBar,
+  titleBarHeight: f64,
+  /// A press in the bar asked for a window drag; `update` starts it.
+  windowDrag: bool,
 }
 
 impl<A, M, C> ShellContent<A, M, C> {
@@ -690,6 +707,11 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     }
   }
 
+  fn configure(self: &Self, options: &mut WindowOptions<'_>) -> () {
+    options.titleBar = self.titleBar
+    options.titleBarHeight = self.titleBarHeight
+  }
+
   effect fn opened(self: &mut Self, platform: &mut HostPlatform, window: WindowId) -> ()
     ! WindowError | OutOfMemoryError
     ? &mut Allocator {
@@ -714,6 +736,15 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
   ) -> bool
     ! WindowError | TreeError | AtlasError | GeometryError | OutOfMemoryError
     ? &mut Allocator {
+    // Only macOS draws the program under the bar; elsewhere the system's bar is there.
+    static if Intrinsic.targetOperatingSystem() == "darwin" {
+      if let Event.MouseDown { button, position, .. } = &event.* {
+        if self.titleBar == TitleBar.Transparent && button == MouseButton.Left && position.y < self.titleBarHeight {
+          self.windowDrag = true
+          return true
+        }
+      }
+    }
     match &event.* {
       Event.Resized { size, .. } => {
         self.keeper.resized(size.width, size.height)
@@ -833,6 +864,10 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     ! WindowError | TreeError | OutOfMemoryError
     ? &mut Allocator {
     let mut changed = false
+    if self.windowDrag {
+      self.windowDrag = false
+      Platform.startWindowDrag(&mut platform.*, window)
+    }
     if !self.greeted {
       // A program that started before the window opened hears a dark appearance now.
       self.greeted = true
@@ -946,6 +981,9 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
     keeper: move keeper,
+    titleBar: window.titleBar,
+    titleBarHeight: window.titleBarHeight,
+    windowDrag: false,
   }
   let code = run runWindowHostedWithSheetUpdates<
     ShellContent<Hosted<P>, M, Run<C>>,
