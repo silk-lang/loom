@@ -27,6 +27,9 @@ pub struct Step {
   pub commands: List<String>,
   /// The model after `update`, one line per field.
   pub model: String,
+  /// The model after `update` as `keep` writes it, to go back to; empty when it is past
+  /// [`MODEL_LIMIT`].
+  pub saved: String,
 }
 
 pub struct Journal {
@@ -59,6 +62,7 @@ impl Journal {
     message: String,
     commands: List<String>,
     model: String,
+    saved: String,
   ) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
@@ -70,6 +74,7 @@ impl Journal {
         message: move message,
         commands: move commands,
         model: move model,
+        saved: move saved,
       },
     )
     self.next = self.next + 1

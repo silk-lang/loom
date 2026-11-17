@@ -8,6 +8,8 @@
 //! | `silk-ui.program` | Whether a program is attached, its counters, subscriptions and model now |
 //! | `silk-ui.messages` | The messages it handled after `since`, at most `limit` of the newest |
 //! | `silk-ui.model` | The model after step `seq` (the last without it) and its line diff |
+//! | `silk-ui.restore` | Puts the model of step `seq`, or of the state saved in `file`, back |
+//! | `silk-ui.save` | Writes the model now to `file`, as `silk-ui.restore` reads it |
 //! | topic `silk-ui.message` | The program handled messages; `next` is the seq the next one gets |
 //! | panel `program` | The Program panel: data `silk-ui.program`, and a view on `silk-ui.view.program` |
 //!
@@ -27,7 +29,13 @@ import loom.program { Hosted, Run, make }
 import silk.core.effect { Effect }
 import silk.core.option { Option }
 import ui_inspect_server.extension { Extension, ExtensionHandler, News, View }
-import ui_inspect_server.reply { failure }
+import ui_inspect_server.reply { failure, begin, finish, putInt, putText, textField }
+import loom.backend { Backend }
+import silk.json.scanner { JsonError }
+import silk.json.value { Json }
+import silk.core.result { Result }
+import silk.num.u64
+import silk.collections.bytes { Bytes }
 import ui_tree.inspect { writeInt }
 import silk.json.value { Value }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
@@ -55,6 +63,116 @@ pub struct SilkUi {
   panel: Option<PanelRuntime>,
   /// How many times the panel's view started from nothing, for tests.
   pub panelStarts: u64,
+  /// A model to put back on the next turn (`apply`), and what the message log calls it.
+  wanted: Option<Value>,
+  wantedLabel: String,
+}
+
+static if Intrinsic.targetArchitecture() != "wasm32" {
+  import silk.system.filesystem { FileSystem, FileError, AtomicWriteError, Path }
+  import silk.system.filesystem_machine { MachineFileSystem }
+  import silk.system.host_input { HostInput, HostInputError }
+
+  static if Intrinsic.targetOperatingSystem() == "windows" {
+    import silk.platform.windows.host_input { WindowsHostInput }
+    import silk.platform.windows.path { WindowsPath }
+  } else {
+    import silk.platform.native.host_input { NativeHostInput }
+  }
+
+  /// The file a state path names: as it is when absolute, else from the working directory.
+  pub effect fn statePath(text: string) -> Path
+    ! FileError | HostInputError | OutOfMemoryError
+    ? &mut Allocator {
+    let bytes = String.utf8Bytes(text)
+    static if Intrinsic.targetOperatingSystem() == "windows" {
+      // `/C:/...` is already a portable path (what `Path.view` gives); `C:\...` and `\\server`
+      // are Windows names.
+      if bytes.length > 1 && bytes[0] == 47 && bytes[1] != 47 {
+        return run Path.make(text)
+      }
+      if (bytes.length > 1 && bytes[1] == 58) || (bytes.length > 0 && (bytes[0] == 92 || bytes[0] == 47)) {
+        return run WindowsPath.fromNativeBytes(bytes)
+      }
+      let mut inputs = run WindowsHostInput.capture()
+      let native = run HostInput.workingDirectory() |> Effect.provideMut<HostInput>(&mut inputs)
+      let base = run WindowsPath.fromNativeBytes(native.asSlice())
+      let mut relative = run Bytes.copy(bytes)
+      let slashes = relative.asMutSlice()
+      let mut i: usize = 0
+      while i < slashes.length {
+        if slashes[i] == 92 {
+          slashes[i] = 47
+        }
+        i = i + 1
+      }
+      return run Path.resolveBytes(&base, relative.asSlice())
+    } else {
+      if bytes.length > 0 && bytes[0] == 47 {
+        return run Path.make(text)
+      }
+      let cwd = run NativeHostInput.workingDirectory()
+      let base = run Path.fromBytes(cwd.asSlice())
+      return run Path.resolve(&base, text)
+    }
+  }
+
+  effect fn readState(path: string) -> Bytes
+    ! FileError | HostInputError | OutOfMemoryError
+    ? &mut Allocator | &mut FileSystem {
+    let file = run statePath(path)
+    return run FileSystem.readFile(&file)
+  }
+
+  effect fn writeState(path: string, bytes: &[u8]) -> ()
+    ! AtomicWriteError | FileError | HostInputError | OutOfMemoryError
+    ? &mut Allocator | &mut FileSystem {
+    let file = run statePath(path)
+    run FileSystem.writeFileAtomic(
+      &file,
+      bytes,
+      FileSystem.replaceExisting(),
+      FileSystem.buffered(),
+    )
+  }
+}
+
+/// The bytes of the state file at `path` (see `statePath`), or None when it could not be read.
+pub effect fn fileText(path: string) -> Option<Bytes>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  static if Intrinsic.targetArchitecture() == "wasm32" {
+    return Option<Bytes>.None
+  } else {
+    let mut files = run MachineFileSystem.make()
+    return match move run Effect.result(readState(path))
+      |> Effect.provideMut<FileSystem>(&mut files) {
+      Result<Bytes, FileError | HostInputError | OutOfMemoryError>.Success { value } => Option<Bytes>.some(move value)
+      Result<Bytes, FileError | HostInputError | OutOfMemoryError>.Failure { error } => {
+        drop error
+        Option<Bytes>.None
+      }
+    }
+  }
+}
+
+/// Writes `text` to the file at `path`; false when it could not.
+effect fn saveText(path: string, text: string) -> bool
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  static if Intrinsic.targetArchitecture() == "wasm32" {
+    return false
+  } else {
+    let mut files = run MachineFileSystem.make()
+    return match move run Effect.result(writeState(path, String.utf8Bytes(text)))
+      |> Effect.provideMut<FileSystem>(&mut files) {
+      Result<(), AtomicWriteError | FileError | HostInputError | OutOfMemoryError>.Success { .. } => true
+      Result<(), AtomicWriteError | FileError | HostInputError | OutOfMemoryError>.Failure { error } => {
+        drop error
+        false
+      }
+    }
+  }
 }
 
 effect fn treeFailed(error: TreeError) -> () {
@@ -73,7 +191,94 @@ impl SilkUi {
       announced: 0,
       panel: Option<PanelRuntime>.None,
       panelStarts: 0,
+      wanted: Option<Value>.None,
+      wantedLabel: String.make(),
     }
+  }
+
+  /// Asks for the model after step `seq` on the next turn. False when the log has no such
+  /// step or it was too big to keep.
+  effect fn wantStep(self: &mut Self, seq: u64) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let steps = self.log.steps.asSlice()
+    let mut i: usize = 0
+    while i < steps.length {
+      if steps[i].seq == seq {
+        if String.byteLength(String.view(&steps[i].saved)) == 0 {
+          return false
+        }
+        let parsed = run Effect.result(Json.parse(String.utf8Bytes(String.view(&steps[i].saved))))
+        return match move parsed {
+          Result<Value, JsonError | OutOfMemoryError>.Success { value } => {
+            let mut label = run String.copy("return to step ")
+            run writeInt(&mut label, seq)
+            self.wantedLabel = move label
+            self.wanted = Option<Value>.some(move value)
+            true
+          }
+          Result<Value, JsonError | OutOfMemoryError>.Failure { error } => {
+            drop error
+            false
+          }
+        }
+      }
+      i = i + 1
+    }
+    return false
+  }
+
+  /// Asks for the model saved in a state file (what `save` writes) on the next turn; the
+  /// reason it can't, or empty.
+  effect fn wantFile(self: &mut Self, path: string) -> string<'static>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let bytes = match move run fileText(path) {
+      Option<Bytes>.Some { value } => move value
+      Option<Bytes>.None => {
+        return "the file could not be read"
+      }
+    }
+    let document = match move run Effect.result(Json.parse(bytes.asSlice())) {
+      Result<Value, JsonError | OutOfMemoryError>.Success { value } => move value
+      Result<Value, JsonError | OutOfMemoryError>.Failure { error } => {
+        drop error
+        return "the file is not JSON"
+      }
+    }
+    let model = match Json.field(&document, "model") {
+      Option<&Value>.Some { value } => run Json.copy(value)
+      Option<&Value>.None => {
+        return "the file has no model"
+      }
+    }
+    let mut label = run String.copy("load ")
+    run label.append(path)
+    self.wantedLabel = move label
+    self.wanted = Option<Value>.some(move model)
+    return ""
+  }
+
+  /// Puts back the model asked for since the last turn (`silk-ui.restore`, or Return in the
+  /// Program panel) and renders it. Says whether it did. The host calls it once a turn, with
+  /// the program's tree.
+  pub effect fn apply<A: App<M, C>, M, C, B: Backend>(
+    self: &mut Self,
+    runtime: &mut Runtime<A, M, C>,
+    tree: &mut B,
+  ) -> bool
+    ! TreeError | OutOfMemoryError
+    ? &mut Allocator {
+    let saved = match move Intrinsic.replace(self.wanted, Option<Value>.None) {
+      Option<Value>.Some { value } => move value
+      Option<Value>.None => {
+        return false
+      }
+    }
+    let label = Intrinsic.replace(self.wantedLabel, String.make())
+    let report = run runtime.restoreModel(&mut tree, &saved, "devtools", String.view(&label))
+    drop report
+    return true
   }
 
   /// Whether the Program panel's view runs: a client has it open.
@@ -89,6 +294,8 @@ impl SilkUi {
     run info.command("program")
     run info.command("messages")
     run info.command("model")
+    run info.command("restore")
+    run info.command("save")
     run info.topic("message")
     run info.panel(PROGRAM_PANEL, "Program", "program", "message", true)
     run info.tool(
@@ -112,6 +319,20 @@ impl SilkUi {
       r"""{"type":"object","properties":{"seq":{"type":"integer","description":"The step whose model to show; the last one without it."}}}""",
       true,
     )
+    run info.tool(
+      "restore",
+      "Return to a model",
+      "Puts the program's model back to what it was after step seq of the message log, or to the state saved in file (what save writes). The view renders it and later messages go on from there; the message log gets a step for it. Fields that no longer fit the model keep their value.",
+      r"""{"type":"object","properties":{"seq":{"type":"integer","description":"The step whose model to return to."},"file":{"type":"string","description":"A state file save wrote, relative to the app's working directory."}}}""",
+      false,
+    )
+    run info.tool(
+      "save",
+      "Save the model",
+      "Writes the program's model now to file as JSON, so restore can bring the app back to it later, in this run or another: to share a state, start a test from it, or keep states to come back to.",
+      r"""{"type":"object","properties":{"file":{"type":"string","description":"Where to write it, relative to the app's working directory."}},"required":["file"]}""",
+      false,
+    )
     return move info
   }
 
@@ -131,7 +352,7 @@ impl SilkUi {
     let mut steps = runtime.journal.take()
     let lines = run runtime.subscriptionLines()
     while steps.length() != 0 {
-      let Step { seq, time, cause, message, commands, model } = steps.remove(0)
+      let Step { seq, time, cause, message, commands, model, saved } = steps.remove(0)
       run self.log.add(
         ProgramStep {
           seq: seq,
@@ -140,6 +361,7 @@ impl SilkUi {
           message: move message,
           commands: move commands,
           model: move model,
+          saved: move saved,
         },
       )
     }
@@ -175,6 +397,61 @@ impl ExtensionHandler for SilkUi {
     }
     if name == "messages" {
       run self.log.messages(request, &mut out)
+      return true
+    }
+    if name == "restore" {
+      if !self.log.attached {
+        run failure(&mut out, request, "no program is attached")
+        return true
+      }
+      let file = textField(request, "file")
+      if String.byteLength(file) != 0 {
+        let problem = run self.wantFile(file)
+        if String.byteLength(problem) != 0 {
+          run failure(&mut out, request, problem)
+          return true
+        }
+      } else {
+        let seq = match Json.asU64(Json.field(request, "seq")) {
+          Option<u64>.Some { value } => value
+          Option<u64>.None => {
+            run failure(&mut out, request, "restore takes --seq N or --file PATH")
+            return true
+          }
+        }
+        if !run self.wantStep(seq) {
+          run failure(&mut out, request, "no such step, or its model was too big to keep")
+          return true
+        }
+      }
+      run begin(&mut out, request)
+      run putText(&mut out, "restoring", String.view(&self.wantedLabel))
+      run finish(&mut out)
+      return true
+    }
+    if name == "save" {
+      let file = textField(request, "file")
+      let steps = self.log.steps.asSlice()
+      if String.byteLength(file) == 0 {
+        run failure(&mut out, request, "save takes --file PATH")
+      } else if steps.length == 0 || String.byteLength(String.view(&steps[steps.length - 1].saved)) == 0 {
+        run failure(&mut out, request, "no model to save yet, or it is too big to keep")
+      } else {
+        let last = &steps[steps.length - 1]
+        let mut text = run String.copy("{\"step\":")
+        run writeInt(&mut text, last.seq)
+        run text.append(",\"model\":")
+        run text.append(String.view(&last.saved))
+        run text.append("}\n")
+        if run saveText(file, String.view(&text)) {
+          run begin(&mut out, request)
+          run putText(&mut out, "file", file)
+          run putInt(&mut out, "step", last.seq)
+          run finish(&mut out)
+        } else {
+          run failure(&mut out, request, "the file could not be written")
+        }
+      }
       return true
     }
     if name == "model" {
@@ -222,15 +499,20 @@ impl ExtensionHandler for SilkUi {
       self.panelStarts = self.panelStarts + 1
       return ()
     }
+    let mut asked: u64 = 0
     if let Option<PanelRuntime>.Some { value: runtime } = &mut self.panel {
       let events = view.hasEvents()
       let mut backend = ViewBackend { view: &mut view }
       if events {
         drop run Effect.catch<TreeError>(pump(&mut runtime, &mut backend), pumpFailed)
       }
+      asked = Intrinsic.replace(runtime.model.value.asked, 0)
       if run runtime.model.value.sync(&self.log) {
         run Effect.catch<TreeError>(runtime.render(&mut backend), treeFailed)
       }
+    }
+    if asked != 0 {
+      drop run self.wantStep(asked)
     }
   }
 }

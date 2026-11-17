@@ -24,6 +24,8 @@ import diff { DiffState, diffFrom, rootStyle }
 import windows { Windows, WindowEvent, WindowRecord }
 import journal { Journal, MODEL_LIMIT, eventName }
 import show { Printer, show, showTree }
+import keep { Restored, encode, restoreValue }
+import silk.json.value { Value }
 import font { Fonts }
 import ui { Ui, Identity, AnchorRect, NO_ENTRY, ROOT_ID, Sources }
 import ui_protocol.mutation {
@@ -213,13 +215,56 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       run waiting.append(run show(&commands[i]))
       i = i + 1
     }
+    let saved = run self.savedModel()
     run self.journal.add(
       self.time,
       run String.copy("start"),
       run String.copy("init"),
       move waiting,
       move model,
+      move saved,
     )
+  }
+
+  /// The model as `keep` writes it, for the journal; empty past [`MODEL_LIMIT`].
+  effect fn savedModel(self: &Self) -> String
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let text = run encode(&self.model)
+    if String.byteLength(String.view(&text)) > MODEL_LIMIT {
+      return String.make()
+    }
+    return move text
+  }
+
+  /// Puts a model `keep` wrote (a journal step's, or one saved to a file) onto the model and
+  /// renders it, as if a message had led there: the journal gets a step for it, said by
+  /// `cause` and `message`. The report names the fields that kept their value.
+  pub effect fn restoreModel<B: Backend>(
+    self: &mut Self,
+    tree: &mut B,
+    saved: &Value,
+    cause: string,
+    message: string,
+  ) -> Restored
+    ! TreeError | OutOfMemoryError
+    ? &mut Allocator {
+    let report = run restoreValue(&mut self.model, saved)
+    self.stats.messages = self.stats.messages + 1
+    if self.journal.on {
+      let model = run self.shownModel()
+      let kept = run self.savedModel()
+      run self.journal.add(
+        self.time,
+        run String.copy(cause),
+        run String.copy(message),
+        List<String>.make(),
+        move model,
+        move kept,
+      )
+    }
+    run self.render(&mut tree)
+    return move report
   }
 
   effect fn shownModel(self: &Self) -> String
@@ -1391,7 +1436,15 @@ pub effect fn settle<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
         i = i + 1
       }
       let model = run runtime.shownModel()
-      run runtime.journal.add(runtime.time, move cause, move shown, move asked, move model)
+      let saved = run runtime.savedModel()
+      run runtime.journal.add(
+        runtime.time,
+        move cause,
+        move shown,
+        move asked,
+        move model,
+        move saved,
+      )
     } else {
       App<M, C>.update(&mut runtime.model, move message, &mut runtime.context)
     }

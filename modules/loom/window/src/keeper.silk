@@ -6,6 +6,7 @@
 //! is kept with it, and so are the focused node and the scroll offsets, by their place in the
 //! tree. The file is `{"window": {"width", "height"}, "tree": {"focus", "scroll"}, "model": ...}`.
 import loom.keep { write, restoreValue }
+import loom_inspect.extension { fileText }
 import silk.core.result { Result }
 import silk.json.scanner { JsonError }
 import silk.json.value { Json, Value }
@@ -27,6 +28,10 @@ const GIVE_UP: u32 = 120
 
 /// The variable that names the file.
 pub const VARIABLE: string<'static> = "SILKUI_KEEP"
+
+/// The variable that names a state file (what `silk-ui.save` writes) to start from instead of
+/// the model `init` makes, in a debug build.
+pub const STATE_VARIABLE: string<'static> = "SILKUI_STATE"
 
 pub struct Keeper {
   path: String,
@@ -133,13 +138,27 @@ impl Keeper {
   }
 
   /// Puts the saved model, if there is one, onto `model`, and says on standard error what
-  /// started over. [`size`] has the saved window size after it.
+  /// started over. [`size`] has the saved window size after it. Without one, a debug build
+  /// starts from the state file `SILKUI_STATE` names, if any.
   pub effect fn restore<P>(self: &mut Self, model: &mut P) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
     static if Intrinsic.targetArchitecture() != "wasm32" {
+      if !run self.restoreKept(&mut model) {
+        run startFrom(&mut model)
+      }
+    }
+  }
+
+  /// Puts the kept model back; false when there was none to read.
+  effect fn restoreKept<P>(self: &mut Self, model: &mut P) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    static if Intrinsic.targetArchitecture() == "wasm32" {
+      return false
+    } else {
       if !self.on() {
-        return ()
+        return false
       }
       let mut files = run MachineFileSystem.make()
       let saved = run Effect.catchAll(readSaved(String.view(&self.path)), unread)
@@ -147,17 +166,15 @@ impl Keeper {
       let bytes = match move saved {
         Option<Bytes>.Some { value } => move value
         Option<Bytes>.None => {
-          return ()
+          return false
         }
       }
       let document = match move run Effect.result(Json.parse(bytes.asSlice())) {
         Result<Value, JsonError | OutOfMemoryError>.Success { value } => move value
         Result<Value, JsonError | OutOfMemoryError>.Failure { error } => {
           drop error
-          return StderrWriter.print(
-            "loom: the kept model could not be read; starting from init\n",
-            &(),
-          )
+          StderrWriter.print("loom: the kept model could not be read; starting from init\n", &())
+          return true
         }
       }
       let window = Json.field(&document, "window")
@@ -171,12 +188,13 @@ impl Keeper {
       let kept = match Json.field(&document, "model") {
         Option<&Value>.Some { value } => value
         Option<&Value>.None => {
-          return ()
+          return true
         }
       }
       let report = run restoreValue(&mut model, kept)
       if report.whole() {
-        return StderrWriter.print("loom: kept the model across the restart\n", &())
+        StderrWriter.print("loom: kept the model across the restart\n", &())
+        return true
       }
       let mut names = String.make()
       let reset = report.reset.asSlice()
@@ -192,6 +210,7 @@ impl Keeper {
         "loom: kept the model across the restart; these no longer fit and start over: {}\n",
         &.(String.view(&names)),
       )
+      return true
     }
   }
 
@@ -454,4 +473,46 @@ effect fn putBack(tree: &mut UiTree<'_>, saved: &Value, focus: bool) -> bool
     i = i + 1
   }
   return true
+}
+
+/// Starts `model` from the state file `SILKUI_STATE` names, in a debug build, and says so on
+/// standard error.
+effect fn startFrom<P>(model: &mut P) -> ()
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  static if Intrinsic.targetArchitecture() != "wasm32" {
+    if !debugBuild() {
+      return ()
+    }
+    let path = match move run environmentVariable(STATE_VARIABLE) {
+      Option<String>.Some { value } => move value
+      Option<String>.None => {
+        return ()
+      }
+    }
+    let bytes = match move run fileText(String.view(&path)) {
+      Option<Bytes>.Some { value } => move value
+      Option<Bytes>.None => {
+        return StderrWriter.print("loom: no state file at {}\n", &.(String.view(&path)))
+      }
+    }
+    let document = match move run Effect.result(Json.parse(bytes.asSlice())) {
+      Result<Value, JsonError | OutOfMemoryError>.Success { value } => move value
+      Result<Value, JsonError | OutOfMemoryError>.Failure { error } => {
+        drop error
+        return StderrWriter.print("loom: {} is not a state file\n", &.(String.view(&path)))
+      }
+    }
+    if let Option<&Value>.Some { value } = Json.field(&document, "model") {
+      let report = run restoreValue(&mut model, value)
+      if report.whole() {
+        return StderrWriter.print("loom: started from {}\n", &.(String.view(&path)))
+      }
+      return StderrWriter.print(
+        "loom: started from {}; some fields no longer fit and keep their init value\n",
+        &.(String.view(&path)),
+      )
+    }
+    StderrWriter.print("loom: {} has no model\n", &.(String.view(&path)))
+  }
 }
