@@ -21,6 +21,7 @@ import ui_protocol.options { AnchorOptions }
 import virtual_list { VirtualList, VirtualOptions, VirtualRow }
 import heap { Heap }
 import aria { AriaField, AriaValues }
+import ui_protocol.aria { isNamedAttribute }
 import ui_protocol.mutation {
   NodeKind,
   StyleState,
@@ -126,6 +127,40 @@ impl Span {
   }
 }
 
+/// One literal attribute in an arena's packed attribute list.
+pub struct NamedPair { pub name: Span, pub value: Span, pub next: u32 }
+
+fn sameBytes(left: &[u8], right: &[u8]) -> bool {
+  if left.length != right.length { return false }
+  let mut i: usize = 0
+  while i < left.length {
+    if left[i] != right[i] { return false }
+    i = i + 1
+  }
+  return true
+}
+
+fn readSize(bytes: &[u8], at: usize) -> u32 {
+  let mut value: u32 = 0
+  let mut scale: u32 = 1
+  let mut i: usize = 0
+  while i < 4 {
+    value = value + u8.toU32(bytes[at + i]) * scale
+    if i < 3 { scale = scale * 256 }
+    i = i + 1
+  }
+  return value
+}
+fn appendSize(heap: &mut Heap, bytes: &mut List<u8>, length: usize) -> () {
+  let mut value = usize.toU32(length)
+  let mut i: usize = 0
+  while i < 4 {
+    heap.alloc(bytes.append(u32.toU8(value % 256)))
+    value = value / 256
+    i = i + 1
+  }
+}
+
 /// One node of a render.
 pub struct Entry {
   pub parent: u32,
@@ -198,6 +233,9 @@ pub struct Extra {
   pub transition: Span,
   /// `Attribute.ElementId`: for a document backend.
   pub elementId: Span,
+  /// Packed literal attributes; lengths are relative so lazy regions can copy them.
+  pub attributes: Span,
+  pub customProperties: Span,
   pub multiline: bool,
   pub readOnly: bool,
   /// `takeFocus` was called: the diff focuses the node when this render asks and the last
@@ -260,6 +298,8 @@ impl Extra {
       href: Span.empty(),
       transition: Span.empty(),
       elementId: Span.empty(),
+      attributes: Span.empty(),
+      customProperties: Span.empty(),
       multiline: false,
       readOnly: false,
       wantsFocus: false,
@@ -475,6 +515,26 @@ impl Arena {
       lazies: List<LazyRecord>.make(),
       extras: List<Extra>.make(),
     }
+  }
+
+  pub fn namedAt(self: &Self, span: Span, offset: u32) -> NamedPair {
+    let start = span.start + offset
+    let bytes = self.bytes.asSlice()
+    let nameLength = readSize(bytes, u32.toUsize(start))
+    let valueLength = readSize(bytes, u32.toUsize(start + 4))
+    return NamedPair { name: Span { start: start + 8, length: nameLength },
+      value: Span { start: start + 8 + nameLength, length: valueLength },
+      next: offset + 8 + nameLength + valueLength }
+  }
+
+  pub fn namedFind(self: &Self, span: Span, name: &[u8]) -> Option<Span> {
+    let mut at: u32 = 0
+    while at < span.length {
+      let pair = self.namedAt(span, at)
+      if sameBytes(self.text(pair.name), name) { return Option<Span>.some(pair.value) }
+      at = pair.next
+    }
+    return Option<Span>.None
   }
 
   pub fn clear(self: &mut Self) -> () {
@@ -2046,6 +2106,8 @@ impl<M> Ui<M> {
         extra.href = shifted(extra.href, byteShift)
         extra.transition = shifted(extra.transition, byteShift)
         extra.elementId = shifted(extra.elementId, byteShift)
+        extra.attributes = shifted(extra.attributes, byteShift)
+        extra.customProperties = shifted(extra.customProperties, byteShift)
         extra.canvas = shifted(extra.canvas, canvasShift)
         if extra.grid != NO_ENTRY {
           let grid = self.heap.alloc(self.previous.grids.asSlice()[u32.toUsize(extra.grid)].copy())
@@ -2589,7 +2651,7 @@ impl<M> Ui<M> {
   }
 
   /// The element a document backend shows the open node as, by HTML tag name (`"tr"`,
-  /// `"button"`), in place of its kind's own. The tree renderer ignores it.
+  /// `"button"`), in place of its kind's own. The native tree retains it for selector matching.
   pub fn element(self: &mut Self, name: string) -> () {
     if !self.dispatching {
       let span = self.store(String.utf8Bytes(name))
@@ -2598,8 +2660,97 @@ impl<M> Ui<M> {
     }
   }
 
-  /// The open node's classes, as the HTML `class` attribute (`"btn btn-primary"`), so the
-  /// page's stylesheets apply to it in a document backend. The tree renderer ignores it.
+  /// Adds CSS classes to the open node, after the ones it has: `ui.class("flex gap-2")`.
+  pub fn class(self: &mut Self, value: string) -> () {
+    if self.dispatching || String.utf8Bytes(value).length == 0 { return () }
+    let previous = self.arena.entryRef(self.current).className
+    if previous.length == 0 { self.className(value) return () }
+    let mut joined = List<u8>.make()
+    self.heap.alloc(joined.appendSlice(self.arena.text(previous)))
+    self.heap.alloc(joined.append(32))
+    self.heap.alloc(joined.appendSlice(String.utf8Bytes(value)))
+    let span = self.store(joined.asSlice())
+    let entry = self.arena.entryMut(self.current)
+    entry.className = span
+  }
+
+  /// Adds every class string in the list.
+  pub fn classes(self: &mut Self, values: &[string]) -> () {
+    let mut at: usize = 0
+    while at < values.length {
+      self.class(values[at])
+      at = at + 1
+    }
+  }
+
+  /// Adds the classes while `when` holds: `ui.classWhen(model.open, "ring-2")`.
+  pub fn classWhen(self: &mut Self, when: bool, value: string) -> () {
+    if when { self.class(value) }
+  }
+
+  /// Adds `on` while `when` holds and `off` otherwise.
+  pub fn classSelect(self: &mut Self, when: bool, on: string, off: string) -> () {
+    if when { self.class(on) } else { self.class(off) }
+  }
+
+  /// The CSS id, independent of the runtime's numeric node id.
+  pub fn id(self: &mut Self, value: string) -> () { self.elementId(value) }
+
+  pub fn customProperty(self: &mut Self, name: string, value: string) -> () {
+    self.customPropertyFor(StyleState.Base, name, value, false)
+  }
+
+  pub fn customPropertyFor(self: &mut Self, state: StyleState, name: string, value: string, important: bool) -> () {
+    if self.dispatching || !String.startsWith(name, "--") || String.utf8Bytes(name).length <= 2 { return () }
+    let code: u8 = match state { StyleState.Base => 0 StyleState.Hover => 1 StyleState.Active => 2 StyleState.Focus => 3 StyleState.FocusVisible => 4 StyleState.Starting => 5 }
+    let previous = self.arena.extraCopy(self.arena.entryRef(self.current)).customProperties
+    let mut packed = List<u8>.make()
+    let mut at: u32 = 0
+    while at < previous.length {
+      let pair = self.arena.namedAt(previous, at)
+      let key = self.arena.text(pair.name)
+      if key[0] != code || !sameBytes(Slice.view<u8>(key, 1, key.length - 1), String.utf8Bytes(name)) {
+        self.heap.alloc(packed.appendSlice(self.arena.text(Span { start: previous.start + at, length: pair.next - at })))
+      }
+      at = pair.next
+    }
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(name).length + 1)
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(value).length + 1)
+    self.heap.alloc(packed.append(code))
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(name)))
+    self.heap.alloc(packed.append(if important { 1 } else { 0 }))
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(value)))
+    let span = self.store(packed.asSlice())
+    let extra = self.extraMut()
+    extra.customProperties = span
+  }
+
+  /// A literal selector attribute. Omit it in a later view to remove it; empty stays present.
+  pub fn attribute(self: &mut Self, name: string, value: string) -> () {
+    if self.dispatching || !isNamedAttribute(name) { return () }
+    if name == "class" { self.className(value) return () }
+    if name == "id" { self.elementId(value) return () }
+    let previous = self.arena.extraCopy(self.arena.entryRef(self.current)).attributes
+    let mut packed = List<u8>.make()
+    let mut at: u32 = 0
+    while at < previous.length {
+      let pair = self.arena.namedAt(previous, at)
+      if !sameBytes(self.arena.text(pair.name), String.utf8Bytes(name)) {
+        self.heap.alloc(packed.appendSlice(self.arena.text(Span { start: previous.start + at, length: pair.next - at })))
+      }
+      at = pair.next
+    }
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(name).length)
+    appendSize(&mut self.heap, &mut packed, String.utf8Bytes(value).length)
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(name)))
+    self.heap.alloc(packed.appendSlice(String.utf8Bytes(value)))
+    let span = self.store(packed.asSlice())
+    let extra = self.extraMut()
+    extra.attributes = span
+  }
+
+  /// Replaces the open node's classes, as assigning the HTML `class` attribute does
+  /// (`"btn btn-primary"`). A document backend's stylesheets and the native tree's match them.
   pub fn className(self: &mut Self, value: string) -> () {
     if !self.dispatching {
       let span = self.store(String.utf8Bytes(value))
@@ -2608,7 +2759,7 @@ impl<M> Ui<M> {
     }
   }
 
-  /// The open node's HTML `id` in a document backend. The tree renderer ignores it.
+  /// The open node's HTML `id` in a document backend. The native tree retains it for selector matching.
   pub fn elementId(self: &mut Self, value: string) -> () {
     if !self.dispatching {
       let span = self.store(String.utf8Bytes(value))

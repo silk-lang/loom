@@ -1,3 +1,5 @@
+pub import ui_tree.style_runtime { runtime as runtimeStylesheets }
+pub import ui_tree.style_compiler { Compiler as StylesheetCompiler }
 //! A [`Program`] in a native window, with the [`Shell`] of that window.
 //!
 //! ```silk,ignore
@@ -31,7 +33,8 @@
 //!
 //! A worker thread reaches the program through a [`Poster`]: `poster.post(name, text)` is
 //! heard by `subs.port(key, name, …)` on the UI thread.
-import lib { WindowContent, runWindowHosted, Loader }
+import lib { WindowContent, runWindowHostedWithSheetUpdates, Loader }
+import keeper { Keeper }
 import loom.app { App }
 import loom.program { Program, CommandSet, Hosted, Run, make }
 import loom.runtime { Runtime }
@@ -41,6 +44,11 @@ import loom.shell {
   MenuEntry,
   StandardItem,
   FileDialog,
+  Tray,
+  PORT_DRAG,
+  PORT_SHORTCUT,
+  PORT_TRAY,
+  PORT_NOTIFICATION,
   PORT_APPEARANCE,
   PORT_CLOSE,
   PORT_FILES,
@@ -54,7 +62,10 @@ import ui_tree_window.platform_thread { HostPlatform, Nudge, launch as launchThr
 import ui_inspect_server.lib { Inspector, InspectorOptions }
 import atlas.atlas { AtlasError }
 import vector.geometry_error { GeometryError }
-import window.event { Event, Modifiers }
+import window.event { Event, Modifiers, MouseButton }
+import window.keys { KeyCode, keyCodeFromValue }
+import window.shell { Notification, Tray as TrayOptions, TrayIcon }
+import ui_tree_window.keys { codeName }
 import window.menu { MenuBar, Shortcut, ShortcutKey, SystemItem, OpenDialog, SaveDialog }
 // Interface methods resolve through this import; silk#2819 reports it as unused.
 import window.platform { Platform as _Platform }
@@ -69,6 +80,7 @@ import silk.geometry.size { Size2 }
 import ui_tree_window.console { StderrWriter }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.mem.pointer { Pointer }
+import silk.num.f64
 import silk.num.u32
 import silk.text.string { String }
 
@@ -98,6 +110,11 @@ union Ask {
   SetMenu { menu: Menu },
   Open { request: u32, title: String, extensions: String, multiple: bool, directories: bool },
   Save { request: u32, title: String, name: String, extensions: String },
+  SetTray { tray: Tray },
+  RemoveTray,
+  Shortcut { id: u32, code: String, modifiers: u32 },
+  Unshortcut { id: u32 },
+  Notify { id: u32, title: String, body: String },
 }
 
 struct Post {
@@ -129,11 +146,17 @@ fn wake(desk: &Arc<Mutex<Desk>>) -> () {
 }
 
 /// The window a program opens: its title and size, its fonts, and its [`Shell`].
+pub import ui_tree.style_assets { StyleAssets }
+pub import ui_tree_window.style_watch { SheetWatch }
+
 pub struct Window {
   title: string<'static>,
   width: f64,
   height: f64,
   resources: Batch,
+  stylesheetCompiler: StylesheetCompiler,
+  stylesheets: StyleAssets,
+  stylesheetUpdates: SheetWatch,
   files: List<CarriedFile>,
   inspect: bool,
   check: bool,
@@ -162,6 +185,9 @@ impl Window {
       width: width,
       height: height,
       resources: Batch.make(),
+      stylesheetCompiler: StylesheetCompiler.off(),
+      stylesheets: StyleAssets.make(),
+      stylesheetUpdates: SheetWatch.make(),
       files: List<CarriedFile>.make(),
       inspect: true,
       check: false,
@@ -170,6 +196,23 @@ impl Window {
       lowestLatency: false,
       desk: run Arc<Mutex<Desk>>.make(run Mutex<Desk>.make(move desk)),
     }
+  }
+
+  /// Installs precompiled application sheets in their supplied order before layout.
+  pub fn withStylesheetCompiler(self: &mut Self, compiler: StylesheetCompiler) -> () { self.stylesheetCompiler = compiler }
+
+  pub fn withStyleSheets(self: &mut Self, stylesheets: StyleAssets) -> () {
+    self.stylesheets = move stylesheets
+  }
+
+  /// Enables compiled stylesheet updates prepared by the development task.
+  pub fn withStyleSheetUpdates(self: &mut Self, updates: SheetWatch) -> () {
+    self.stylesheetUpdates = move updates
+  }
+
+  pub effect fn stylesheet(self: &mut Self, bytes: &[u8]) -> ()
+    ! OutOfMemoryError ? &mut Allocator {
+    run self.stylesheets.append(bytes)
   }
 
   /// The families `css.fontFamilyNumber(family)` stands for, most wanted first:
@@ -366,6 +409,61 @@ impl Shell for WindowShell {
       },
     )
   }
+
+  effect fn setTray(self: &mut Self, tray: Tray) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.ask(Ask.SetTray { tray: move tray })
+  }
+
+  effect fn removeTray(self: &mut Self) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.ask(Ask.RemoveTray)
+  }
+
+  effect fn registerShortcut(self: &mut Self, id: u32, code: string, modifiers: u32) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.ask(Ask.Shortcut { id: id, code: run String.copy(code), modifiers: modifiers })
+  }
+
+  effect fn unregisterShortcut(self: &mut Self, id: u32) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.ask(Ask.Unshortcut { id: id })
+  }
+
+  effect fn notify(self: &mut Self, id: u32, title: string, body: string) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.ask(Ask.Notify { id: id, title: run String.copy(title), body: run String.copy(body) })
+  }
+}
+
+/// The key whose UI Events `code` is `name`, `Unidentified` for none.
+fn keyCodeOf(name: string) -> KeyCode {
+  let mut value: u32 = 1
+  while value < 129 {
+    let code = keyCodeFromValue(value)
+    if codeName(code) == name {
+      return code
+    }
+    value = value + 1
+  }
+  return KeyCode.Unidentified
+}
+
+/// `text` for `PORT_DRAG`: `kind`, then the position in whole CSS pixels.
+effect fn dragText(kind: string, x: f64, y: f64) -> String
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut text = run String.copy(kind)
+  run text.append(" ")
+  run decimal(&mut text, if x > 0.0 { f64.toU32(x) } else { 0 })
+  run text.append(" ")
+  run decimal(&mut text, if y > 0.0 { f64.toU32(y) } else { 0 })
+  return move text
 }
 
 const DIGITS: string = "0123456789"
@@ -449,6 +547,15 @@ struct Asked {
   request: u32,
 }
 
+/// A notification the platform showed as `shown`, for the program's `id`.
+struct Notice {
+  shown: u32,
+  id: u32,
+}
+
+/// How many notifications nobody clicked are remembered.
+const NOTICES_KEPT: usize = 64
+
 /// The window's side of the shell: does what was asked, and posts what the window says.
 /// A file a program carries, for a relative URL.
 struct CarriedFile {
@@ -457,10 +564,13 @@ struct CarriedFile {
 }
 
 struct ShellContent<A, M, C> {
+  stylesheetCompiler: StylesheetCompiler,
   desk: Arc<Mutex<Desk>>,
   dialogs: List<Asked>,
+  notices: List<Notice>,
   greeted: bool,
   files: List<CarriedFile>,
+  keeper: Keeper,
 }
 
 impl<A, M, C> ShellContent<A, M, C> {
@@ -496,7 +606,56 @@ impl<A, M, C> ShellContent<A, M, C> {
         let dialog = run platform.saveFileDialog(&options)
         run self.dialogs.append(Asked { dialog: dialog.value, request: request })
       }
+      Ask.SetTray { tray } => {
+        let bar = run menuBar(&tray.menu)
+        let options = TrayOptions {
+          icon: TrayIcon {
+            width: tray.width,
+            height: tray.height,
+            pixels: tray.pixels.asSlice(),
+            template: tray.template,
+          },
+          tooltip: String.view(&tray.tooltip),
+          menu: &bar,
+        }
+        drop run platform.setTray(&options)
+      }
+      Ask.RemoveTray => platform.removeTray()
+      Ask.Shortcut { id, code, modifiers } => {
+        let key = keyCodeOf(String.view(&code))
+        if key != KeyCode.Unidentified {
+          let mut held = Modifiers.none()
+          held.shift = (modifiers & MOD_SHIFT) != 0
+          held.control = (modifiers & MOD_CONTROL) != 0
+          held.alt = (modifiers & MOD_ALT) != 0
+          held.meta = (modifiers & MOD_META) != 0
+          drop run platform.registerShortcut(id, key, held)
+        }
+      }
+      Ask.Unshortcut { id } => platform.unregisterShortcut(id)
+      Ask.Notify { id, title, body } => {
+        let notification = Notification { title: String.view(&title), body: String.view(&body) }
+        let shown = run platform.notify(&notification)
+        if shown != 0 {
+          if self.notices.length() >= NOTICES_KEPT {
+            drop self.notices.remove(0)
+          }
+          run self.notices.append(Notice { shown: shown, id: id })
+        }
+      }
     }
+  }
+
+  /// The program's id of notification `shown`; zero for one the shell did not show.
+  fn noticeOf(self: &mut Self, shown: u32) -> u32 {
+    let mut i: usize = 0
+    while i < self.notices.length() {
+      if self.notices.asSlice()[i].shown == shown {
+        return self.notices.remove(i).id
+      }
+      i = i + 1
+    }
+    return 0
   }
 
   /// The request a dialog answers; zero for a dialog the shell did not open.
@@ -522,6 +681,7 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
   effect fn files(self: &mut Self, loader: &mut Loader) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
+    loader.setStylesheetCompiler(self.stylesheetCompiler)
     let files = self.files.asSlice()
     let mut i: usize = 0
     while i < files.length {
@@ -572,6 +732,58 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
           i = i + 1
         }
         run app.posted(PORT_FILES, String.view(&text))
+        return true
+      }
+      Event.FileDragEntered { position, .. } => {
+        let text = run dragText("enter", position.x, position.y)
+        run app.posted(PORT_DRAG, String.view(&text))
+        return true
+      }
+      Event.FileDragMoved { position, .. } => {
+        let text = run dragText("over", position.x, position.y)
+        run app.posted(PORT_DRAG, String.view(&text))
+        return true
+      }
+      Event.FileDragLeft { .. } => {
+        run app.posted(PORT_DRAG, "leave")
+        return true
+      }
+      Event.FileDropped { position, paths, .. } => {
+        let mut text = run dragText("drop", position.x, position.y)
+        let dropped = paths.asSlice()
+        let mut i: usize = 0
+        while i < dropped.length {
+          run text.append("\n")
+          run text.append(String.view(&dropped[i]))
+          i = i + 1
+        }
+        run app.posted(PORT_DRAG, String.view(&text))
+        return true
+      }
+      Event.GlobalShortcut { id } => {
+        let mut text = String.make()
+        run decimal(&mut text, id)
+        run app.posted(PORT_SHORTCUT, String.view(&text))
+        return true
+      }
+      Event.TrayClicked { button } => {
+        run app.posted(
+          PORT_TRAY,
+          match button {
+            MouseButton.Middle => "1"
+            MouseButton.Right => "2"
+            _ => "0"
+          },
+        )
+        return true
+      }
+      Event.NotificationClicked { id } => {
+        let program = self.noticeOf(id)
+        if program != 0 {
+          let mut text = String.make()
+          run decimal(&mut text, program)
+          run app.posted(PORT_NOTIFICATION, String.view(&text))
+        }
         return true
       }
       Event.AppearanceChanged { appearance } => {
@@ -674,6 +886,9 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     let state = guard.getMut()
     let mut posts = Intrinsic.replace(state.posts, List<Post>.make())
     drop guard
+
+    // The loop comes here after the messages of each turn.
+    run self.keeper.save(&app.model, app.stats.messages)
     let changed = posts.length() > 0
     while posts.length() > 0 {
       let post = posts.remove(0)
@@ -695,6 +910,8 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
   ? R | &mut Allocator {
   let mut window = move window
   let mut app = run make<P, M, C>()
+  let mut keeper = run Keeper.fromEnvironment()
+  run keeper.restore(&mut app.model)
   let options = RunOptions {
     title: window.title,
     width: window.width,
@@ -714,19 +931,22 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     Inspector.off()
   }
   let mut content = ShellContent<Hosted<P>, M, Run<C>> {
+    stylesheetCompiler: window.stylesheetCompiler,
     desk: window.desk.clone(),
     dialogs: List<Asked>.make(),
+    notices: List<Notice>.make(),
     greeted: false,
     files: Intrinsic.replace(window.files, List<CarriedFile>.make()),
+    keeper: move keeper,
   }
-  let code = run runWindowHosted<
+  let code = run runWindowHostedWithSheetUpdates<
     ShellContent<Hosted<P>, M, Run<C>>,
     Hosted<P>,
     M,
     Run<C>,
     OutOfMemoryError,
     R
-  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content)
+  >(&mut app, fonts, run window.resources.take(), move options, move inspector, &mut content, Intrinsic.replace(window.stylesheets, StyleAssets.make()), Intrinsic.replace(window.stylesheetUpdates, SheetWatch.make()))
 
   // The platform ends with the window.
   let mut guard = window.desk.get().lock()

@@ -60,12 +60,13 @@ const STATES = [null, ":hover", ":active", ":focus", ":focus-visible", ""];
 const STATE_ORDER = [5, 1, 3, 4, 2];
 const STARTING = 5;
 
-// The same rules as `RESET` in `src/html.silk`, which a server render carries. `:where` gives
-// them no specificity, so the page's own stylesheets win. A pseudo-element rule that matches
+// The same rules as `RESET` in `src/html.silk`, which a server render carries. They sit in a
+// cascade layer that is declared before any other, so the page's own stylesheets win whether
+// they use layers (as Tailwind's output does) or not; `:where` also gives them no specificity. A pseudo-element rule that matches
 // every element makes the browser style that pseudo-element for each one, which costs about a
 // third more style and layout time on a large table: `::selection` only matches the nodes that
 // set a selection color (their descendants inherit it), `::placeholder` only inputs.
-const RESET = `
+const RESET = `@layer silk-reset {
 :where([data-silk]) { outline: none; border-width: 0; -webkit-tap-highlight-color: transparent; }
 :where([data-silk][role="button"]) { user-select: none; -webkit-user-select: none; }
 :where(a[data-silk]) { display: block; color: inherit; text-decoration: none; }
@@ -80,7 +81,7 @@ const RESET = `
 }
 :where([style*="--silk-selection-color"])::selection { background: var(--silk-selection-color, highlight); }
 :where(input[data-silk], textarea[data-silk])::placeholder { color: var(--silk-placeholder-color, gray); opacity: 1; }
-`;
+}`;
 
 const FOCUSABLE =
   '[tabindex]:not([tabindex="-1"]), input:not([tabindex="-1"]), textarea:not([tabindex="-1"]), a[href]:not([tabindex="-1"])';
@@ -339,6 +340,102 @@ async function compile(wasm) {
   return WebAssembly.compile(wasm);
 }
 
+export class RuntimeSheets {
+  constructor(document, resolve) {
+    this.document = document;
+    this.resolve = resolve;
+    this.entries = new Map();
+  }
+
+  load(id, source, url) {
+    let entry = this.entries.get(id);
+    if (!entry) {
+      const node = this.document.createElement("style");
+      node.dataset.silkSheet = id;
+      this.document.head.append(node);
+      entry = { node, controller: null, state: "loading" };
+      this.entries.set(id, entry);
+    }
+    entry.controller?.abort();
+    const controller = new AbortController();
+    entry.controller = controller;
+    entry.state = "loading";
+    const apply = text => {
+      if (controller.signal.aborted) return;
+      if (entry.objectURL) { URL.revokeObjectURL(entry.objectURL); entry.objectURL = null; }
+      if (entry.node.tagName === "LINK") {
+        const node = this.document.createElement("style");
+        node.dataset.silkSheet = id;
+        node.textContent = text;
+        entry.node.replaceWith(node);
+        entry.node = node;
+      } else { entry.node.textContent = text; }
+      entry.state = "ready";
+    };
+    if (!url) { apply(source); return Promise.resolve(); }
+    return this.loadAddress(source, entry, controller).then(() => {}, () => {
+      if (!controller.signal.aborted) entry.state = "failed";
+    });
+  }
+
+  async loadAddress(source, entry, controller) {
+    const address = await this.resolve(source);
+    if (controller.signal.aborted) return;
+    const objectURL = address instanceof Blob ? URL.createObjectURL(address) : null;
+    const node = this.document.createElement("link");
+    node.rel = "stylesheet";
+    node.media = "not all";
+    node.href = objectURL ?? address;
+    return new Promise((resolve, reject) => {
+      entry.pendingNode = node;
+      const cleanup = () => {
+        entry.pendingNode = null;
+        node.onload = node.onerror = null;
+        controller.signal.removeEventListener("abort", cancel);
+      };
+      const discard = () => {
+        cleanup();
+        node.remove();
+        if (objectURL) URL.revokeObjectURL(objectURL);
+      };
+      const cancel = () => { discard(); resolve(); };
+      controller.signal.addEventListener("abort", cancel, { once: true });
+      node.onload = () => {
+        cleanup();
+        if (entry.objectURL) URL.revokeObjectURL(entry.objectURL);
+        entry.objectURL = objectURL;
+        node.media = "";
+        entry.node.remove();
+        entry.node = node;
+        entry.state = "ready";
+        resolve();
+      };
+      node.onerror = () => { discard(); reject(new Error("Stylesheet request failed")); };
+      entry.node.before(node);
+    });
+  }
+
+  remove(id) {
+    const entry = this.entries.get(id);
+    entry?.controller?.abort();
+    if (entry?.objectURL) URL.revokeObjectURL(entry.objectURL);
+    entry?.node.remove();
+    this.entries.delete(id);
+  }
+
+  reorder(ids) {
+    if (ids.length !== this.entries.size || new Set(ids).size !== ids.length || ids.some(id => !this.entries.has(id))) return;
+    const ordered = ids.map(id => [id, this.entries.get(id)]);
+    for (const [, entry] of ordered) {
+      if (entry.pendingNode) this.document.head.append(entry.pendingNode);
+      this.document.head.append(entry.node);
+    }
+    this.entries = new Map(ordered);
+  }
+
+  close() { for (const id of this.entries.keys()) this.remove(id); }
+}
+
 class Page {
   constructor(root, { fonts, loaders = {}, base }) {
     this.root = root;
@@ -352,6 +449,12 @@ class Page {
     this.faces = new Map();
     // The stylesheets of font rules linked so far.
     this.stylesheets = new Set();
+    this.runtimeSheets = new RuntimeSheets(document, url => this.resolve(url));
+    for (const node of root.querySelectorAll("[data-silk-runtime]")) {
+      const id = Number(node.getAttribute("data-silk-runtime"));
+      document.head.append(node);
+      this.runtimeSheets.entries.set(id, { node, controller: null, state: "ready" });
+    }
     // Addresses this page made for resources the program defined, to revoke.
     this.made = new Map();
     this.anchored = new Set();
@@ -388,7 +491,8 @@ class Page {
 
     const reset = document.createElement("style");
     reset.textContent = RESET;
-    document.head.append(reset);
+    // First in the document, so its layer is the lowest: layers rank in order of appearance.
+    document.head.prepend(reset);
     this.sheets = STATES.map(() => null);
     for (const state of STATE_ORDER) {
       const style = document.createElement("style");
@@ -592,6 +696,17 @@ class Page {
           const state = r.u8();
           const style = this.styleOf(id, state, true);
           for (let count = r.u32(); count > 0; count--) this.declare(style, state, r.text());
+          break;
+        }
+        case 37: {
+          const id = r.u32(), state = r.u8(), name = r.text();
+          const value = r.u8() ? r.text() : null;
+          const important = r.u8() !== 0;
+          const style = this.styleOf(id, state, value !== null);
+          if (style && name.startsWith("--") && name.length > 2) {
+            if (value === null) style.removeProperty(name);
+            else style.setProperty(name, value === "" ? " " : value, important || state !== 0 ? "important" : "");
+          }
           break;
         }
         case 6: {
@@ -821,9 +936,26 @@ class Page {
           this.defineKeyframes(name, frames);
           break;
         }
+        case 38: {
+          const root = r.u32(), sheet = r.u32(), url = r.u8(), source = r.text();
+          if (root === 0) void this.runtimeSheets.load(sheet, source, url !== 0);
+          break;
+        }
+        case 39: {
+          const root = r.u32(), sheet = r.u32();
+          if (root === 0) this.runtimeSheets.remove(sheet);
+          break;
+        }
+        case 40: {
+          const root = r.u32(), count = r.u32(), ids = [];
+          for (let i = 0; i < count; i++) ids.push(r.u32());
+          if (root === 0) this.runtimeSheets.reorder(ids);
+          break;
+        }
         case 27: {
           // The first root closes: the mounted element shows nothing.
           if (r.u32() !== 0) break;
+          this.runtimeSheets.close();
           this.nodes.get(this.rootId)?.remove();
           this.rootId = 0;
           break;
@@ -1412,6 +1544,21 @@ class Page {
         if (meta.mixed) set("aria-checked", "mixed");
         else set("aria-checked", meta.checked === undefined ? null : meta.checked ? "true" : "false");
         break;
+      case 22: {
+        const name = r.text();
+        const value = r.u8() === 1 ? r.text() : null;
+        if (name === "class" || name === "id" || name === "lang" || name === "dir" || /^(?:data|aria)-[a-z0-9_.:-]+$/.test(name)) {
+          if (RELATIONS.has(name)) {
+            const relations = this.relations.get(id);
+            relations?.delete(name);
+            if (relations?.size === 0) this.relations.delete(id);
+          }
+          if (value === null) node.removeAttribute(name);
+          else node.setAttribute(name, value);
+          if (name === "id" && this.relations.size) this.relating = true;
+        }
+        break;
+      }
       default:
         throw new Error(`silk-ui: unknown attribute ${code}`);
     }
@@ -1534,7 +1681,7 @@ class Page {
     w.text(event.code ?? "");
     // Transition and animation records carry their property or @keyframes name here.
     w.text(extra.text ?? ("value" in target && typeof target.value === "string" ? target.value : ""));
-    w.text(event.inputType ?? "");
+    w.text(extra.pseudoElement ?? event.inputType ?? "");
     return w;
   }
 
@@ -1583,7 +1730,7 @@ class Page {
     on("error", (event) => event.target instanceof HTMLImageElement && this.direct(EVENT.error, event.target, event), true);
     // The elapsed time travels as x and the property or animation name as the value.
     const motion = (kind, name) => (event) =>
-      this.forward(kind, event, event.target, { x: event.elapsedTime, y: 0, text: event[name] });
+      this.forward(kind, event, event.target, { x: event.elapsedTime, y: 0, text: event[name], pseudoElement: event.pseudoElement });
     on("transitionrun", motion(EVENT.transitionRun, "propertyName"));
     on("transitionstart", motion(EVENT.transitionStart, "propertyName"));
     on("transitionend", motion(EVENT.transitionEnd, "propertyName"));

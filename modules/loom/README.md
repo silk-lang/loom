@@ -350,3 +350,49 @@ virtualization geometry from the app layer; the rest of `loom` talks to any
 The runtime resolves view keys to tree IDs and emits `SetAnchor`; placement then
 follows tree layout and scrolling without rendering the view again. Popup hierarchy
 and event handlers remain part of the view. The anchor key must exist in that view.
+
+### Selector identity
+
+`ui.class("flex gap-2")`, `ui.id("toolbar")`, and
+`ui.attribute("data-state", "open")` set selector identity on the open node.
+The document API has the same helpers: `h.class(...)`, `h.id(...)`, and
+`h.attribute(name, value)`.
+
+Class helpers add up in order, so a node can take its classes in pieces:
+
+```silk
+h.box(&[
+  h.class("rounded-xl border p-4"),
+  h.classWhen(model.busy, "opacity-50"),
+  h.classSelect(chosen, "border-teal-700 bg-teal-50", "border-gray-300 bg-white"),
+  h.classes(&[CARD, SPACING]),
+], children)
+```
+
+`classWhen` adds its classes while the condition holds, `classSelect` adds one of two
+strings, and `classes` adds every string of a list. `className` replaces whatever the
+node has so far, as assigning the HTML attribute does. `ui` has the same four.
+
+Named attributes support `data-*`, `aria-*`, `lang`, and `dir`. Empty strings
+remain present; omitting an attribute in the next view removes it. Repeated
+assignments to a name keep the last value. The tree, HTML renderer and browser
+wire preserve those distinctions. The native tree accepts compiled sheets through
+its batch protocol. `Batch.loadStyleSheet(root, id, source)` also accepts CSS text or a URL.
+Generated development hosts include the runtime compiler; release tree hosts opt in with
+`App.runtimeStylesheets()`. A custom `Window` can install `runtimeStylesheets()` with
+`withStylesheetCompiler`. DOM hosts use the browser's parser. Loads preserve adoption order,
+keep the previous sheet after failure, and ignore cancelled results.
+
+### Custom properties
+
+`ui.customProperty("--gap", "8px")` and `h.customProperty("--gap", "8px")`
+declare a custom property in the base look. Use `customPropertyFor(state, name,
+value, important)` for another look or an important declaration. Names preserve
+case; values are CSS tokens. An empty value is present, and omitting a property
+in a later view removes it.
+
+Custom properties inherit into both sheet declarations and style objects in the
+native tree. The DOM transport uses CSS custom properties directly, and the HTML
+renderer writes them into inline styles or state rules. Lazy regions keep their
+custom declarations when reused. Clearing an ordinary style restores any custom
+properties that the new view still declares in that look.

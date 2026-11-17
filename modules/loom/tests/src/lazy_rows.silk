@@ -112,6 +112,9 @@ fn rowView(h: &Document<Message>, row: &Line, selected: u64) -> Node {
       } else {
         h.none()
       },
+      h.attribute("data-row", String.view(&row.label)),
+      h.attribute("data-empty", ""),
+      h.customProperty("--Row", "8px"),
       h.onClick(Message.Select { id: row.id }),
     ],
     &[h.text(String.view(&row.label)), h.number(u64.toI64(row.id))],
@@ -162,6 +165,8 @@ effect fn lazyRowsBody() -> ()
   let reversed = run page.markup()
   let order = Bytes.asSlice(&reversed)
   run Testing.expect(app.stats.reused > 0, "moved rows are copied too")
+  run Testing.expect(find(order, "--Row: 8px;") != usize.MAX, "custom property spans survive copied lazy regions")
+  run Testing.expect(find(order, "data-row=\"charlie renamed\"") != usize.MAX && find(order, "data-empty=\"\"") != usize.MAX, "copied literal attributes keep relocated values and empty presence")
   run Testing.expect(find(order, "delta") < find(order, "alpha"), "in their new order")
   run Testing.expect(find(order, "charlie renamed") < find(order, "bravo"), "every one of them")
 

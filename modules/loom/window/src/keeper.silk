@@ -1,0 +1,147 @@
+//! The model of a development build, kept across the restart that `silk task dev` does after an
+//! edit. silkui's watcher names the file in `SILKUI_KEEP`; a release build never keeps one.
+//!
+//! The model is saved after the messages of each turn of the window's loop, and put back onto
+//! the model `init` makes when the program starts again (see `loom.keep`).
+import loom.keep { encode, restore }
+import ui_tree_window.host { environmentVariable }
+import ui_inspect_server.server { debugBuild }
+import silk.core.option { Option }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.text.string { String }
+
+/// The variable that names the file.
+pub const VARIABLE: string<'static> = "SILKUI_KEEP"
+
+pub struct Keeper {
+  path: String,
+  /// The message count of the model last saved.
+  saved: u64,
+  last: String,
+}
+
+static if Intrinsic.targetArchitecture() != "wasm32" {
+  import ui_tree_window.console { StderrWriter }
+  import silk.core.effect { Effect }
+  import silk.collections.bytes { Bytes }
+  import silk.system.filesystem { FileSystem, FileError, AtomicWriteError, Path }
+  import silk.system.filesystem_machine { MachineFileSystem }
+
+  effect fn unread(error: FileError | OutOfMemoryError) -> Option<Bytes> {
+    drop error
+    return Option<Bytes>.None
+  }
+
+  effect fn unwritten(error: AtomicWriteError | FileError | OutOfMemoryError) -> () {
+    drop error
+  }
+
+  effect fn readSaved(path: string) -> Option<Bytes>
+    ! FileError | OutOfMemoryError
+    ? &mut Allocator | &mut FileSystem {
+    let file = run Path.make(path)
+    if !(run FileSystem.exists(&file)) {
+      return Option<Bytes>.None
+    }
+    return Option<Bytes>.some(run FileSystem.readFile(&file))
+  }
+
+  effect fn writeSaved(path: string, bytes: &[u8]) -> ()
+    ! AtomicWriteError | FileError | OutOfMemoryError
+    ? &mut Allocator | &mut FileSystem {
+    let file = run Path.make(path)
+    run FileSystem.writeFileAtomic(
+      &file,
+      bytes,
+      FileSystem.replaceExisting(),
+      FileSystem.buffered(),
+    )
+  }
+}
+
+impl Keeper {
+  pub fn off() -> Keeper {
+    return Keeper { path: String.make(), saved: 0, last: String.make() }
+  }
+
+  /// Keeps the model in the file `SILKUI_KEEP` names, in a debug build.
+  pub effect fn fromEnvironment() -> Keeper
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    static if Intrinsic.targetArchitecture() == "wasm32" {
+      return Keeper.off()
+    } else {
+      if !debugBuild() {
+        return Keeper.off()
+      }
+      return match move run environmentVariable(VARIABLE) {
+        Option<String>.Some { value } => Keeper { path: move value, saved: 0, last: String.make() }
+        Option<String>.None => Keeper.off()
+      }
+    }
+  }
+
+  pub fn on(self: &Self) -> bool {
+    return String.byteLength(String.view(&self.path)) != 0
+  }
+
+  /// Puts the saved model, if there is one, onto `model`, and says on standard error what
+  /// started over.
+  pub effect fn restore<P>(self: &mut Self, model: &mut P) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    static if Intrinsic.targetArchitecture() != "wasm32" {
+      if !self.on() {
+        return ()
+      }
+      let mut files = run MachineFileSystem.make()
+      let saved = run Effect.catchAll(readSaved(String.view(&self.path)), unread)
+        |> Effect.provideMut<FileSystem>(&mut files)
+      let bytes = match move saved {
+        Option<Bytes>.Some { value } => move value
+        Option<Bytes>.None => {
+          return ()
+        }
+      }
+      let report = run restore(&mut model, bytes.asSlice())
+      self.last = run String.copy(String.fromUtf8(bytes.asSlice()).unwrapOr(""))
+      if report.whole() {
+        return StderrWriter.print("loom: kept the model across the restart\n", &())
+      }
+      let mut names = String.make()
+      let reset = report.reset.asSlice()
+      let mut i: usize = 0
+      while i < reset.length {
+        if i != 0 {
+          run names.append(", ")
+        }
+        run names.append(String.view(&reset[i]))
+        i = i + 1
+      }
+      StderrWriter.print(
+        "loom: kept the model across the restart; these no longer fit and start over: {}\n",
+        &.(String.view(&names)),
+      )
+    }
+  }
+
+  /// Saves `model` when messages were handled since the last save (`messages` counts them).
+  pub effect fn save<P>(self: &mut Self, model: &P, messages: u64) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    static if Intrinsic.targetArchitecture() != "wasm32" {
+      if !self.on() || messages == self.saved {
+        return ()
+      }
+      self.saved = messages
+      let text = run encode(model)
+      if String.view(&text) == String.view(&self.last) {
+        return ()
+      }
+      let mut files = run MachineFileSystem.make()
+      run Effect.catchAll(writeSaved(String.view(&self.path), text.ownedUtf8Bytes()), unwritten)
+        |> Effect.provideMut<FileSystem>(&mut files)
+      self.last = move text
+    }
+  }
+}

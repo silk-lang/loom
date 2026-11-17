@@ -4,7 +4,7 @@ description = "Runs a loom application in a native window"
 version = "0.1.0"
 silk-version = "0.1.0-pipeline.1"
 kind = "library"
-exports = ["lib", "background", "images", "commands", "program"]
+exports = ["lib", "background", "images", "commands", "keeper", "program"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }

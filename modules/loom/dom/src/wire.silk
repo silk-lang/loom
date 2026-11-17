@@ -1,3 +1,4 @@
+import ui_protocol.stylesheet { StyleSource }
 //! The bytes that cross between the program and `js/silk-ui-dom.js`: mutation batches out,
 //! event records in. Integers are little-endian; a string is its length (u32) and its UTF-8.
 //!
@@ -126,6 +127,7 @@ pub const OP_FONT_STYLESHEET: u8 = 35
 /// Defines `@keyframes`: its name, a count of frames, and for each its offset (0 to 1), a
 /// count of declarations and those declarations as text. No frames removes the rule.
 pub const OP_KEYFRAMES: u8 = 36
+pub const OP_CUSTOM_PROPERTY: u8 = 37
 
 pub effect fn byte(out: &mut Bytes, value: u8) -> ()
   ! OutOfMemoryError
@@ -331,6 +333,8 @@ const ATTR_ARIA: u8 = 20
 /// `aria-checked="mixed"` while on, the checked state again when off.
 const ATTR_INDETERMINATE: u8 = 21
 
+const ATTR_NAMED: u8 = 22
+
 const ATTR_ID: u8 = 19
 
 effect fn color(out: &mut Bytes, value: Rgba<f32>) -> ()
@@ -494,6 +498,17 @@ effect fn writeAttribute(out: &mut Bytes, entry: &Attribute) -> ()
       run byte(&mut out, ATTR_ID)
       run text(&mut out, value.ownedUtf8Bytes())
     }
+    Attribute.Named { name, value } => {
+      run byte(&mut out, ATTR_NAMED)
+      run text(&mut out, name.ownedUtf8Bytes())
+      match &value {
+        Option<String>.Some { value: present } => {
+          run flag(&mut out, true)
+          run text(&mut out, present.ownedUtf8Bytes())
+        }
+        Option<String>.None => run flag(&mut out, false)
+      }
+    }
     Attribute.Indeterminate { value } => {
       run byte(&mut out, ATTR_INDETERMINATE)
       run flag(&mut out, value)
@@ -549,6 +564,20 @@ pub effect fn writeMutation(out: &mut Bytes, mutation: &Mutation) -> bool
         i = i + 1
       }
     }
+    Mutation.SetCustomProperty { id, state, name, value, important } => {
+      run byte(&mut out, OP_CUSTOM_PROPERTY)
+      run word(&mut out, id)
+      run byte(&mut out, stateCode(state))
+      run text(&mut out, name.ownedUtf8Bytes())
+      match &value {
+        Option<String>.Some { value: present } => {
+          run byte(&mut out, 1)
+          run text(&mut out, present.ownedUtf8Bytes())
+        }
+        _ => run byte(&mut out, 0)
+      }
+      run byte(&mut out, if important { 1 } else { 0 })
+    }
     Mutation.ClearStyle { id, state } => {
       run byte(&mut out, OP_CLEAR_STYLE)
       run word(&mut out, id)
@@ -588,6 +617,28 @@ pub effect fn writeMutation(out: &mut Bytes, mutation: &Mutation) -> bool
       run byte(&mut out, OP_ROOT)
       run word(&mut out, root)
       run word(&mut out, node)
+    }
+    Mutation.LoadStyleSheet { root, sheet, source } => {
+      run byte(&mut out, 38)
+      run word(&mut out, root)
+      run word(&mut out, sheet)
+      match &source {
+        StyleSource.Text { bytes } => { run byte(&mut out, 0) run text(&mut out, bytes.asSlice()) }
+        StyleSource.Url { url } => { run byte(&mut out, 1) run text(&mut out, String.utf8Bytes(String.view(&url))) }
+      }
+    }
+    Mutation.RemoveStyleSheet { root, sheet } => {
+      run byte(&mut out, 39)
+      run word(&mut out, root)
+      run word(&mut out, sheet)
+    }
+    Mutation.SetStyleSheetOrder { root, sheets } => {
+      run byte(&mut out, 40)
+      run word(&mut out, root)
+      run word(&mut out, usize.toU32(sheets.length()))
+      let ids = sheets.asSlice()
+      let mut i: usize = 0
+      while i < ids.length { run word(&mut out, ids[i]) i = i + 1 }
     }
     Mutation.CloseRoot { root } => {
       run byte(&mut out, OP_CLOSE_ROOT)
@@ -853,6 +904,8 @@ pub effect fn readEvent(bytes: &[u8]) -> Event
     // Transition and animation records: the name travels as the value, the elapsed time as x.
     event.name = move event.value
     event.value = String.make()
+    event.pseudoElement = move event.inputType
+    event.inputType = String.make()
     event.elapsedTime = event.x
     event.x = 0.0
   }

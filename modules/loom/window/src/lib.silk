@@ -22,6 +22,8 @@
 //! more frames, reads the window's surface back and compares it with the CPU reference of the
 //! same frame. It returns 0 within tolerance, 1 outside and 2 on an error.
 import ui_scene.scene { Scene }
+import ui_tree.style_assets { StyleAssets }
+import ui_tree_window.style_watch { SheetWatch }
 
 static if Intrinsic.targetArchitecture() != "wasm32" {
   import font_collection.system as systemFonts
@@ -237,10 +239,55 @@ pub effect fn runWindowHosted<
 ) -> i32
   ! E | WindowError | GpuError | TreeError | AtlasError | GeometryError | OutOfMemoryError
   ? R | &mut Allocator {
+  return run runWindowHostedWithSheets(&mut app, collection, move resources, move options, move inspector, &mut content, StyleAssets.make())
+}
+
+pub effect fn runWindowHostedWithSheets<
+  H: WindowContent<A, M, C>,
+  A: App<M, C>,
+  M,
+  C: Perform<M, E, R>,
+  E,
+  ? R
+>(
+  app: &mut Runtime<A, M, C>,
+  collection: &FontCollection,
+  resources: List<Mutation>,
+  options: RunOptions,
+  inspector: Inspector,
+  content: &mut H,
+  stylesheets: StyleAssets,
+) -> i32
+  ! E | WindowError | GpuError | TreeError | AtlasError | GeometryError | OutOfMemoryError
+  ? R | &mut Allocator {
+  return run runWindowHostedWithSheetUpdates(&mut app, collection, move resources, move options, move inspector, &mut content, move stylesheets, SheetWatch.make())
+}
+
+pub effect fn runWindowHostedWithSheetUpdates<
+  H: WindowContent<A, M, C>,
+  A: App<M, C>,
+  M,
+  C: Perform<M, E, R>,
+  E,
+  ? R
+>(
+  app: &mut Runtime<A, M, C>,
+  collection: &FontCollection,
+  resources: List<Mutation>,
+  options: RunOptions,
+  inspector: Inspector,
+  content: &mut H,
+  stylesheets: StyleAssets,
+  updates: SheetWatch,
+) -> i32
+  ! E | WindowError | GpuError | TreeError | AtlasError | GeometryError | OutOfMemoryError
+  ? R | &mut Allocator {
   let mut client: AppClient<A, M, C, H> = AppClient<A, M, C, H> {
     content: &mut content,
     silkUi: SilkUi.make(),
     loader: Loader.make(),
+    stylesheets: move stylesheets,
+    stylesheetUpdates: move updates,
   }
   let mut inspector = move inspector
   run inspector.extend(run SilkUi.extension())
@@ -262,6 +309,8 @@ struct AppClient<'a, A, M, C, H> {
   silkUi: SilkUi,
   /// Loads the image and icon URLs the views name.
   loader: Loader,
+  stylesheets: StyleAssets,
+  stylesheetUpdates: SheetWatch,
 }
 
 impl<'a, A, M, C, H> AppClient<'a, A, M, C, H> {
@@ -375,13 +424,14 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> bool
     ! WindowError | TreeError | OutOfMemoryError
     ? &mut Allocator {
+    let styled = run self.stylesheetUpdates.poll(&mut self.stylesheets, &mut tree, time)
     let loaded = run self.load(&mut tree)
     let polled = run WindowContent<A, M, C>.poll(&mut self.content.*, &mut state, &mut tree, time)
-    return loaded || polled
+    return styled || loaded || polled
   }
 
   fn wakeAfter(self: &Self, state: &Runtime<A, M, C>) -> Option<f64> {
-    let wanted = WindowContent<A, M, C>.wakeAfter(&self.content.*)
+    let wanted = self.stylesheetUpdates.wakeAfter(WindowContent<A, M, C>.wakeAfter(&self.content.*))
     if !self.loader.pending() {
       return wanted
     }
@@ -481,6 +531,8 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let root = tree.current
+    drop run self.stylesheets.serve(&mut tree, root)
     run frame(&mut state, &mut tree, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)
   }
@@ -494,6 +546,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    drop run self.stylesheets.serve(&mut tree, root)
     run frameRoot(&mut state, &mut tree, root, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)
   }
