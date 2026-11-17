@@ -1,6 +1,6 @@
 //! Notes: a native app. One note, a menu bar, open and save dialogs, the clipboard, the
-//! system's appearance, a close that asks before it loses work, and a sidebar dragged with a
-//! captured pointer.
+//! system's appearance, a close that asks before it loses work, a file dropped on the window
+//! to open it, and a sidebar dragged with a captured pointer.
 //!
 //! Everything it asks of the window goes through the [`Shell`] service, and the files through
 //! a [`Disk`] service the host provides, so the tests run it with no window at all.
@@ -12,6 +12,7 @@ import loom.lib {
   Cursor,
   Document,
   FileDialog,
+  FileDrag,
   Menu,
   Node,
   NoOutput,
@@ -70,6 +71,8 @@ pub union Message {
   Typed { pub value: String },
   Chose { pub action: u32 },
   Picked { pub request: u32, pub paths: List<String> },
+  /// Files dragged in from another app.
+  FilesDragged { pub drag: FileDrag },
   Loaded { pub path: String, pub text: String },
   Saved { pub path: String },
   Pasted { pub text: String },
@@ -300,6 +303,14 @@ impl Program<Message, Command> for Notes {
         }
         let text = run String.copy(String.view(&model.text))
         return run Next.with(move model, Command.Write { path: move path, text: move text })
+      }
+      Message.FilesDragged { drag } => {
+        if let FileDrag.Drop { paths, .. } = move drag {
+          let mut dropped = move paths
+          if dropped.length() > 0 {
+            return run Next.with(move model, Command.Read { path: dropped.remove(0) })
+          }
+        }
       }
       Message.Loaded { path, text } => {
         model.text = move text
@@ -545,6 +556,7 @@ impl Program<Message, Command> for Notes {
     subs.windowFocus(4, |focused| Message.FocusIs { focused: focused })
     subs.closeRequested(5, || Message.CloseAsked)
     subs.port(6, PORT_WORKER, |text| Message.Said { text: move text })
+    subs.fileDrag(7, |drag| Message.FilesDragged { drag: move drag })
   }
 
   fn fonts(model: &Notes, fonts: &mut Fonts) -> () {
