@@ -488,7 +488,9 @@ impl<M> Document<M> {
     return self.node(Shape.Image, &lead, attributes, &[])
   }
 
-  /// An icon: the SVG at `url`, drawn in the text color.
+  /// An icon: the SVG at `url`, drawn in the text color. Small markup can sit in the view as
+  /// a `data:image/svg+xml,<svg ...>` URL. Without a size it takes the SVG's `width` and
+  /// `height`. `h.image` draws an SVG file too, as an `<img>` does.
   pub fn icon(self: &Self, url: string, attributes: &[Attr]) -> Node {
     return self.node(Shape.Icon, &[self.op(Op.Source { text: self.store(url) })], attributes, &[])
   }
