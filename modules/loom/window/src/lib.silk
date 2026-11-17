@@ -425,13 +425,14 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
     ! WindowError | TreeError | OutOfMemoryError
     ? &mut Allocator {
     let styled = run self.stylesheetUpdates.poll(&mut self.stylesheets, &mut tree, time)
+    run self.loader.watch(time)
     let loaded = run self.load(&mut tree)
     let polled = run WindowContent<A, M, C>.poll(&mut self.content.*, &mut state, &mut tree, time)
     return styled || loaded || polled
   }
 
   fn wakeAfter(self: &Self, state: &Runtime<A, M, C>) -> Option<f64> {
-    let wanted = self.stylesheetUpdates.wakeAfter(WindowContent<A, M, C>.wakeAfter(&self.content.*))
+    let wanted = self.loader.watchAfter(self.stylesheetUpdates.wakeAfter(WindowContent<A, M, C>.wakeAfter(&self.content.*)))
     if !self.loader.pending() {
       return wanted
     }
