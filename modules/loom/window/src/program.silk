@@ -891,8 +891,9 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
     drop guard
 
     // The loop comes here after the messages of each turn.
+    let restored = run self.keeper.track(&mut tree)
     run self.keeper.save(&app.model, app.stats.messages)
-    let changed = posts.length() > 0
+    let changed = restored || posts.length() > 0
     while posts.length() > 0 {
       let post = posts.remove(0)
       run app.posted(String.view(&post.name), String.view(&post.text))
