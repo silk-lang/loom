@@ -70,11 +70,38 @@ jobs:
         continue-on-error: true
         run: |
           set -x
-          f=$(find ~/.silk/toolchains -path '*stdlib/silk/system/filesystem.silk' | head -1)
-          perl -pi -e 's/pub fn invalidPath\(\) -> FileReason \{ return/pub fn invalidPath() -> FileReason {\n  Intrinsic.trap("invalidPath")\n  return/' "$f"
-          grep -n 'pub fn invalidPath' "$f"
-          rm -rf build ~/.silk/cache
+          tc=$(ls -d ~/.silk/toolchains/*/ | head -1)
+          mv "$tc/bin/silkc" "$tc/bin/silkc.real"
+          cat > "$tc/bin/silkc" <<'SH'
+          #!/bin/bash
+          here=$(cd "$(dirname "$0")" && pwd)
+          case "$1" in
+            graph|resolve|compile)
+              echo "::group::silkc $1"
+              cp "$3" "$RUNNER_TEMP/silkc-$1-$(basename "$3")"
+              python3 - "$3" <<'PY'
+          import re, sys
+          for value in sorted(set(re.findall(r'"([^"]*/[^"]*)"', open(sys.argv[1]).read()))):
+              odd = value != "/" and (value.endswith("/") or "//" in value or re.search(r"(^|/)\.\.?(/|$)", value) or not value.startswith("/"))
+              print(("ODD  " if odd else "path ") + value)
+          PY
+              sudo DevToolsSecurity -enable >/dev/null 2>&1 || true
+              lldb --batch -o "breakpoint set -r 'rejectPath|invalidPath'" -o run -o "bt 40" -o kill -- "$here/silkc.real" "$@" || true
+              echo "::endgroup::"
+              ;;
+          esac
+          exec -a "$0" "$here/silkc.real" "$@"
+          SH
+          chmod +x "$tc/bin/silkc"
+          rm -rf build
           silk task native demo modules/loom/demo -- --build-only || true
+          mv "$tc/bin/silkc.real" "$tc/bin/silkc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: silkc-inputs-macOS
+          path: ${{ runner.temp }}/silkc-*
+          if-no-files-found: ignore
       - name: Window demo
         run: silk task native demo modules/loom/demo -- check
       - name: Devtools
