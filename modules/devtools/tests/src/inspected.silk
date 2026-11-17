@@ -205,6 +205,7 @@ effect fn step(
     message: run String.copy(message),
     commands: move commands,
     model: run String.copy(model),
+    saved: String.make(),
   }
 }
 

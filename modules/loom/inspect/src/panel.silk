@@ -47,6 +47,8 @@ pub struct PanelStep {
   pub changed: bool,
   /// The model after the step.
   pub model: String,
+  /// Whether the app can return to the model after the step.
+  pub restorable: bool,
 }
 
 /// The panel's model: a copy of what the log holds, and the step that is open.
@@ -66,6 +68,8 @@ pub struct ProgramPanel {
   pub cleared: u64,
   /// Whether the model shows in full rather than as its diff with the model before.
   pub full: bool,
+  /// The step whose model the app should return to, until the extension takes it; 0 for none.
+  pub asked: u64,
 }
 
 pub union PanelMessage {
@@ -75,6 +79,8 @@ pub union PanelMessage {
   Clear,
   /// Show the model in full, or its diff.
   Mode { pub full: bool },
+  /// Put the app back to the model after step `seq`.
+  Return { pub seq: u64 },
 }
 
 type Next = Update<ProgramPanel, NoCommand, NoOutput>
@@ -92,6 +98,7 @@ impl ProgramPanel {
       changedLines: 0,
       cleared: 0,
       full: false,
+      asked: 0,
     }
   }
 
@@ -159,6 +166,7 @@ impl ProgramPanel {
             commandList: move commandList,
             changed: i == 0 || before != String.view(&steps[i].model),
             model: run String.copy(String.view(&steps[i].model)),
+            restorable: String.byteLength(String.view(&steps[i].saved)) != 0,
           },
         )
         changed = true
@@ -554,6 +562,37 @@ effect fn modelTitle(step: &PanelStep) -> String
   return run capitals(String.view(&text))
 }
 
+/// Puts the app back to the model after step `seq`; later messages go on from there.
+fn returnButton(h: &Document<PanelMessage>, seq: u64) -> Node {
+  return h.button(
+    &[
+      h.testId("return-to-step"),
+      h.label("Return to this step"),
+      h.onClick(PanelMessage.Return { seq: seq }),
+      ui(h, 11.0, 14.0),
+      h.style(
+        &[
+          css.paddingTop(px(2.0)),
+          css.paddingBottom(px(2.0)),
+          css.paddingLeft(px(8.0)),
+          css.paddingRight(px(8.0)),
+          css.flexShrink(0.0),
+          css.borderTopWidth(px(1.0)),
+          css.borderRightWidth(px(1.0)),
+          css.borderBottomWidth(px(1.0)),
+          css.borderLeftWidth(px(1.0)),
+          css.borderStyle(BorderStyle.Solid),
+          css.borderColor(rgb(LINE)),
+          css.borderRadius(px(3.0)),
+          css.color(rgb(TEXT)),
+          css.backgroundColor(clear()),
+        ],
+      ),
+    ],
+    &[h.text("Return here")],
+  )
+}
+
 /// Diff or Full: a small segmented control.
 fn modeSwitch(model: &ProgramPanel, h: &Document<PanelMessage>) -> Node {
   return h.row(
@@ -839,7 +878,24 @@ fn modelView(model: &ProgramPanel, h: &Document<PanelMessage>) -> Node {
       ),
     ],
     &[
-      head(h, 16.0, &[label(h, String.view(&title)), modeSwitch(model, h)]),
+      head(
+        h,
+        16.0,
+        &[
+          label(h, String.view(&title)),
+          h.row(
+            &[h.style(&[css.alignItems(Align.Center), css.columnGap(px(8.0)), css.flexShrink(0.0)])],
+            &[
+              if step.restorable && step.seq != model.last() {
+                returnButton(h, step.seq)
+              } else {
+                h.empty()
+              },
+              modeSwitch(model, h),
+            ],
+          ),
+        ],
+      ),
       if !model.full && model.opened == step.seq && model.changedLines == 0 {
         h.box(
           &[ui(h, 12.0, 16.0), h.style(&[css.paddingLeft(px(16.0)), css.paddingBottom(px(4.0))])],
@@ -927,6 +983,9 @@ impl Program<PanelMessage, NoCommand> for ProgramPanel {
       }
       PanelMessage.Mode { full } => {
         model.full = full
+      }
+      PanelMessage.Return { seq } => {
+        model.asked = seq
       }
     }
     return Next.of(move model)

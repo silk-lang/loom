@@ -427,8 +427,9 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
     let styled = run self.stylesheetUpdates.poll(&mut self.stylesheets, &mut tree, time)
     run self.loader.watch(time)
     let loaded = run self.load(&mut tree)
+    let restored = run self.silkUi.apply(&mut state, &mut tree)
     let polled = run WindowContent<A, M, C>.poll(&mut self.content.*, &mut state, &mut tree, time)
-    return styled || loaded || polled
+    return styled || loaded || restored || polled
   }
 
   fn wakeAfter(self: &Self, state: &Runtime<A, M, C>) -> Option<f64> {
