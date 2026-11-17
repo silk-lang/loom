@@ -66,15 +66,6 @@ jobs:
         run: silk task setup-ci
       - name: Window host tests
         run: silk test --manifest-path modules/loom/window/tests/silk.toml --root src/tests.silk
-      - name: Diagnose graph builds (temporary)
-        continue-on-error: true
-        run: |
-          set -x
-          silk task native demo modules/loom/demo -- --build-only --release || true
-          silk build --manifest-path modules/loom/demo/silk.toml || true
-          ls -la build/aarch64-apple-darwin/dev || true
-          silk task native demo modules/loom/demo -- --build-only || true
-          find build -maxdepth 4 -name '*.dSYM' | head || true
       - name: Window demo
         run: silk task native demo modules/loom/demo -- check
       - name: Devtools
