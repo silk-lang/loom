@@ -2,7 +2,7 @@
 name = "silkui-web-dom"
 description = "What the hosts silkui generates for a Loom app on the web-dom target run: the page's own elements, driven through the protocol"
 version = "0.1.0"
-silk-version = "0.1.0-dev.85+45b9e51824ca"
+silk-version = "0.1.0-dev.86+c9d19330761b"
 kind = "library"
 main = "app.silk"
 exports = ["app"]
