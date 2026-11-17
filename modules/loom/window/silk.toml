@@ -9,9 +9,9 @@ exports = ["lib", "background", "images", "commands", "keeper", "program"]
 [dependencies]
 loom = { path = "..", package = "loom" }
 loom_tree = { path = "../tree", package = "loom-tree" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/tree", package = "ui-tree" }
-ui_tree_window = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/tree/window", package = "ui-tree-window" }
-ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "858a8cf20a9f12175218a969a64422c9d2107498", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "cc2e42705054aa5c2099babc072a03ba40f7b7a0", path = "modules/tree", package = "ui-tree" }
+ui_tree_window = { git = "https://github.com/silk-lang/silkui.git", rev = "cc2e42705054aa5c2099babc072a03ba40f7b7a0", path = "modules/tree/window", package = "ui-tree-window" }
+ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "cc2e42705054aa5c2099babc072a03ba40f7b7a0", path = "modules/inspect/server", package = "ui-inspect-server" }
 loom_inspect = { path = "../inspect", package = "loom-inspect" }
 ui_devtools = { path = "../../devtools", package = "ui-inspect-devtools" }
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "b3c1c268a9e370b4b7253704406b903d14b5b0bc", path = "modules/collection", package = "font-collection" }
