@@ -76,6 +76,9 @@ jobs:
           echo "$f"
           perl -0pi -e 's/(effect fn rejectPath\(\) -> never ! FileError \{\n)/$1  Intrinsic.trap("rejectPath")\n/' "$f"
           grep -n -A2 'effect fn rejectPath' "$f"
+          b=$(dirname "$(dirname "$f")")/build
+          perl -pi -e 's/fail FileSystem\.error\(FileSystem\.pathOperation\(\), FileSystem\.invalidPath\(\)\)/Intrinsic.trap("build-path")\nfail FileSystem.error(FileSystem.pathOperation(), FileSystem.invalidPath())/g' "$b/fingerprint.silk" "$b/publish.silk"
+          grep -n 'build-path' "$b/fingerprint.silk" "$b/publish.silk"
           silk task native demo modules/loom/demo -- --build-only || true
       - name: Window demo
         run: silk task native demo modules/loom/demo -- check
