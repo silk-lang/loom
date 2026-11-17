@@ -5,9 +5,12 @@
 //! and a test provides [`ShellLog`], which writes down what was asked.
 //!
 //! What the shell has to say comes back through subscriptions: `subs.menuAction`,
-//! `subs.files`, `subs.appearance`, `subs.windowFocus` and `subs.closeRequested`.
+//! `subs.files`, `subs.appearance`, `subs.windowFocus`, `subs.closeRequested`, and from the
+//! desktop `subs.fileDrag`, `subs.globalShortcut`, `subs.trayClick` and
+//! `subs.notificationClick`.
 import ui_protocol.input { MOD_CONTROL, MOD_META }
 import silk.collections.list { List }
+import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.text.string { String }
 
@@ -204,6 +207,38 @@ impl<'a> FileDialog<'a> {
   }
 }
 
+/// An icon in the system tray (the macOS menu bar's status area, the Windows notification
+/// area, a StatusNotifierItem on Linux).
+pub struct Tray {
+  /// RGBA pixels, not premultiplied, row by row from the top left: `width` by `height`. 32 by
+  /// 32 looks right everywhere.
+  pub pixels: List<u8>,
+  pub width: u32,
+  pub height: u32,
+  /// macOS draws a template icon from its alpha, in the menu bar's colours.
+  pub template: bool,
+  /// Shown when the pointer rests on the icon.
+  pub tooltip: String,
+  /// The items the icon opens, at the menu's top level (`begin` makes submenus). Their actions
+  /// come to `subs.menuAction`, as the app menu's do, so the two share action numbers. With
+  /// no items, a click comes to `subs.trayClick`.
+  pub menu: Menu,
+}
+
+impl Tray {
+  /// A tray icon of `width` by `height` RGBA `pixels`, with no tooltip and no menu.
+  pub fn make(pixels: List<u8>, width: u32, height: u32) -> Tray {
+    return Tray {
+      pixels: move pixels,
+      width: width,
+      height: height,
+      template: false,
+      tooltip: String.make(),
+      menu: Menu.make(),
+    }
+  }
+}
+
 /// The window a program runs in, and the desktop around it. Every method can be called from a
 /// command, the ones `init` starts with included: a host that has no window yet does what was
 /// asked once it has one.
@@ -243,6 +278,28 @@ pub service Shell {
   effect fn saveFile(request: u32, dialog: FileDialog<'_>) -> ()
     ! OutOfMemoryError
     ? &mut Shell | &mut Allocator
+
+  /// Shows `tray` in the system tray, in place of the one before.
+  effect fn setTray(tray: Tray) -> () ! OutOfMemoryError ? &mut Shell | &mut Allocator
+
+  /// Takes the tray icon away.
+  effect fn removeTray() -> () ! OutOfMemoryError ? &mut Shell | &mut Allocator
+
+  /// Asks for `subs.globalShortcut` to hear `id` when the key with the UI Events `code`
+  /// (`"KeyK"`, `"F5"`) is pressed with exactly the `MOD_*` `modifiers`, whichever app has
+  /// focus. `commandKey()` is the usual modifier. Registering `id` again replaces it. The
+  /// system may refuse one another app holds, and Wayland has none.
+  effect fn registerShortcut(id: u32, code: string, modifiers: u32) -> ()
+    ! OutOfMemoryError
+    ? &mut Shell | &mut Allocator
+
+  effect fn unregisterShortcut(id: u32) -> () ! OutOfMemoryError ? &mut Shell | &mut Allocator
+
+  /// Shows a desktop notification, as the web's `new Notification(title, { body })`.
+  /// `subs.notificationClick` hears `id` when the user clicks it.
+  effect fn notify(id: u32, title: string, body: string) -> ()
+    ! OutOfMemoryError
+    ? &mut Shell | &mut Allocator
 }
 
 /// A [`Shell`] for tests: it writes down what was asked, one line each, and keeps a clipboard
@@ -252,6 +309,7 @@ pub struct ShellLog {
   pub clipboard: String,
   pub isDark: bool,
   pub menu: Menu,
+  pub tray: Option<Tray>,
 }
 
 impl ShellLog {
@@ -261,6 +319,7 @@ impl ShellLog {
       clipboard: String.make(),
       isDark: false,
       menu: Menu.make(),
+      tray: Option<Tray>.None,
     }
   }
 
@@ -355,7 +414,51 @@ impl Shell for ShellLog {
     ? &mut Allocator {
     run self.note("saveFile", dialog.title)
   }
+
+  effect fn setTray(self: &mut Self, tray: Tray) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let tooltip = run String.copy(String.view(&tray.tooltip))
+    self.tray = Option<Tray>.some(move tray)
+    run self.note("setTray", String.view(&tooltip))
+  }
+
+  effect fn removeTray(self: &mut Self) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    self.tray = Option<Tray>.None
+    run self.note("removeTray", "")
+  }
+
+  effect fn registerShortcut(self: &mut Self, id: u32, code: string, modifiers: u32) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.note("registerShortcut", code)
+  }
+
+  effect fn unregisterShortcut(self: &mut Self, id: u32) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.note("unregisterShortcut", "")
+  }
+
+  effect fn notify(self: &mut Self, id: u32, title: string, body: string) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    run self.note("notify", title)
+  }
 }
 
 // The ports a host posts what the shell says to (see the `Subscriptions` methods).
-pub import app { PORT_APPEARANCE, PORT_CLOSE, PORT_FILES, PORT_FOCUS, PORT_MENU }
+pub import app {
+  PORT_APPEARANCE,
+  PORT_CLOSE,
+  PORT_FILES,
+  PORT_FOCUS,
+  PORT_MENU,
+  PORT_DRAG,
+  PORT_SHORTCUT,
+  PORT_TRAY,
+  PORT_NOTIFICATION,
+  FileDrag
+}

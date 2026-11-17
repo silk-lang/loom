@@ -2,7 +2,7 @@
 //! in memory, with what a window would say posted to the shell's ports.
 import loom.lib { drain, post, Shell, ShellLog, TreeError }
 import loom.program as program
-import loom.shell { PORT_APPEARANCE, PORT_CLOSE, PORT_FILES, PORT_FOCUS, PORT_MENU }
+import loom.shell { PORT_APPEARANCE, PORT_CLOSE, PORT_DRAG, PORT_FILES, PORT_FOCUS, PORT_MENU }
 import loom_tree.harness { drag, typeText, click }
 import loom_dom.html { Html }
 import loom_examples.look { SANS }
@@ -111,6 +111,15 @@ effect fn notesBody() -> ()
   )
   run post(&mut app, &mut page, PORT_FILES, "1\n/tmp/a.txt")
   run Testing.expect(String.view(&app.model.value.text) == "two words", "a file opens")
+
+  // A file dropped on the window opens too; a drag that leaves does nothing.
+  app.send(Message.Typed { value: run String.copy("") })
+  run drain(&mut app, &mut page)
+  run post(&mut app, &mut page, PORT_DRAG, "enter 12 30")
+  run post(&mut app, &mut page, PORT_DRAG, "leave")
+  run Testing.expect(String.view(&app.model.value.text) == "", "a drag that leaves opens nothing")
+  run post(&mut app, &mut page, PORT_DRAG, "drop 12 30\n/tmp/a.txt")
+  run Testing.expect(String.view(&app.model.value.text) == "two words", "a dropped file opens")
 
   // A clean note closes at once.
   run post(&mut app, &mut page, PORT_CLOSE, "")
