@@ -155,6 +155,8 @@ pub struct Window {
   height: f64,
   titleBar: TitleBar,
   titleBarHeight: f64,
+  controlsLeft: f64,
+  controlsTop: f64,
   resources: Batch,
   stylesheetCompiler: StylesheetCompiler,
   stylesheets: StyleAssets,
@@ -188,6 +190,8 @@ impl Window {
       height: height,
       titleBar: TitleBar.Standard,
       titleBarHeight: 0.0,
+      controlsLeft: 0.0,
+      controlsTop: 0.0,
       resources: Batch.make(),
       stylesheetCompiler: StylesheetCompiler.off(),
       stylesheets: StyleAssets.make(),
@@ -245,6 +249,13 @@ impl Window {
   pub fn withTitleBar(self: &mut Self, titleBar: TitleBar, height: f64) -> () {
     self.titleBar = titleBar
     self.titleBarHeight = height
+  }
+
+  /// With a transparent title bar, puts the window buttons' top-left corner `left` and `top`
+  /// points from the window's edges; 0 keeps that one centred in the bar.
+  pub fn withControls(self: &mut Self, left: f64, top: f64) -> () {
+    self.controlsLeft = left
+    self.controlsTop = top
   }
 
   /// Does not serve the inspector, even in a debug build with `SILK_UI_INSPECT` set.
@@ -586,6 +597,8 @@ struct ShellContent<A, M, C> {
   keeper: Keeper,
   titleBar: TitleBar,
   titleBarHeight: f64,
+  controlsLeft: f64,
+  controlsTop: f64,
   /// A press in the bar asked for a window drag; `update` starts it.
   windowDrag: bool,
 }
@@ -710,6 +723,8 @@ impl<A: App<M, C>, M, C> WindowContent<A, M, C> for ShellContent<A, M, C> {
   fn configure(self: &Self, options: &mut WindowOptions<'_>) -> () {
     options.titleBar = self.titleBar
     options.titleBarHeight = self.titleBarHeight
+    options.controlsLeft = self.controlsLeft
+    options.controlsTop = self.controlsTop
   }
 
   effect fn opened(self: &mut Self, platform: &mut HostPlatform, window: WindowId) -> ()
@@ -983,6 +998,8 @@ pub effect fn open<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
     keeper: move keeper,
     titleBar: window.titleBar,
     titleBarHeight: window.titleBarHeight,
+    controlsLeft: window.controlsLeft,
+    controlsTop: window.controlsTop,
     windowDrag: false,
   }
   let code = run runWindowHostedWithSheetUpdates<
