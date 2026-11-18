@@ -2,10 +2,10 @@
 name = "loom-mirror"
 description = "The mirror example: one model in two native windows"
 version = "0.1.0"
-silk-version = "0.1.0-dev.86+c9d19330761b"
+silk-version = "0.1.0-dev.87+37fa5f8857de"
 
 [dependencies]
 loom = { path = "..", package = "loom" }
 loom_window = { path = "../window", package = "loom-window" }
 loom_examples = { path = "../examples", package = "loom-examples" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "a447f9d774dd92f225285dd337e97f03cb68c90f", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "c5e71280196f52f3ece352f8236135c0252f16f9", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }

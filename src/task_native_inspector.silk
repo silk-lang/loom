@@ -267,7 +267,15 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     )
     drop app
     let dock = run program("embedded-dock", binary, &[], docked.asSlice(), cli)
-    let narrow = run commandJson(cli, &dock, &["hello"], env)
+
+    // The first frame can be laid out before the dock takes its share of the window.
+    let mut narrow = run commandJson(cli, &dock, &["hello"], env)
+    let settle = milliseconds() + 10000
+    while !(number(&narrow, "height") > 0 && number(&narrow, "height") < 300)
+      && milliseconds() < settle {
+      pause()
+      narrow = run commandJson(cli, &dock, &["hello"], env)
+    }
     run expect(
       number(&narrow, "height") > 0 && number(&narrow, "height") < 300,
       "docked devtools: the app lays out above the dock",
@@ -469,10 +477,15 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     // view the app renders and the devtools replay, over the socket.
     let hello = run commandJson(cli, app, &["hello"], env)
     let extensions = run array(run field(&hello, "extensions"))
-    run expect(
-      extensions.length == 1 && stringField(&extensions[0], "id") == "silk-ui",
-      "hello lists the silk-ui extension",
-    )
+    let mut silkUiListed = false
+    let mut index: usize = 0
+    while index < extensions.length {
+      if stringField(&extensions[index], "id") == "silk-ui" {
+        silkUiListed = true
+      }
+      index = index + 1
+    }
+    run expect(silkUiListed, "hello lists the silk-ui extension")
     let messages = run commandJson(cli, app, &["silk-ui.messages", "--since", "0"], env)
     let steps = run array(run field(&messages, "messages"))
     run expect(

@@ -3,12 +3,12 @@ include = ["js"]
 name = "loom-dom"
 description = "Runs a loom program in a browser document"
 version = "0.1.0"
-silk-version = "0.1.0-dev.86+c9d19330761b"
+silk-version = "0.1.0-dev.87+37fa5f8857de"
 kind = "library"
 exports = ["lib", "wire", "dom", "page", "html", "grid_css"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "a447f9d774dd92f225285dd337e97f03cb68c90f", path = "modules/tree", package = "ui-tree" }
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "a447f9d774dd92f225285dd337e97f03cb68c90f", path = "modules/protocol", package = "ui-protocol" }
-css_style = { git = "https://github.com/silk-lang/lib-css.git", rev = "95fbcb38f873324ce47cae9b67459df4086205e3", path = "modules/style", package = "css-style" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "c5e71280196f52f3ece352f8236135c0252f16f9", path = "modules/tree", package = "ui-tree" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "c5e71280196f52f3ece352f8236135c0252f16f9", path = "modules/protocol", package = "ui-protocol" }
+css_style = { git = "https://github.com/silk-lang/lib-css.git", rev = "990c1fed13564be20e204ff5a17aac49c76b0daa", path = "modules/style", package = "css-style" }

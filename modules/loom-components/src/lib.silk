@@ -33,3 +33,4 @@ pub import dialog { Disclosure, dialog, dialogButton, isEscape }
 pub import popover { popover, tooltip }
 pub import numeric { NumberOptions, NumberEvent, numberInput }
 pub import color { colorPicker, withChannel }
+pub import showcase { Showcase, Exhibits, Shown, WIDTHS }

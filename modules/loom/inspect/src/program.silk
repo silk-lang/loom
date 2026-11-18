@@ -35,6 +35,8 @@ pub struct ProgramStep {
   pub commands: List<String>,
   /// The model after `update`, one line per field.
   pub model: String,
+  /// The model as `loom.keep` writes it, to return to; empty when it was too big to keep.
+  pub saved: String,
 }
 
 /// The counters of a program's runtime.

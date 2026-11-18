@@ -15,6 +15,10 @@ import silk.json.scanner { JsonError }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.testing.testing { Testing, AssertionError }
 import silk.text.string { String }
+import silk.system.filesystem { FileSystem, FileError, Path }
+import silk.system.filesystem_machine { MachineFileSystem }
+import silk.system.host_input { HostInputError }
+import here { directory }
 
 effect fn put(client: &mut MemoryChannel, line: string) -> ()
   ! OutOfMemoryError
@@ -31,12 +35,39 @@ effect fn take(client: &mut MemoryChannel) -> String
   return move line
 }
 
+/// The reply to request `id`, past the topic news before it; "" when none came.
+effect fn reply(client: &mut MemoryChannel, id: string) -> String
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  while true {
+    let line = run take(&mut client)
+    if line.ownedByteLength() == 0 || has(&line, id) {
+      return move line
+    }
+  }
+  return String.make()
+}
+
 fn has(line: &String, text: string) -> bool {
   return String.contains(String.view(line), text)
 }
 
+/// A request line with `file` set to `path`.
+effect fn fileRequest(id: string, cmd: string, path: string) -> String
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut line = run String.copy("{\"id\":")
+  run line.append(id)
+  run line.append(",\"cmd\":\"")
+  run line.append(cmd)
+  run line.append("\",\"file\":\"")
+  run line.append(path)
+  run line.append("\"}")
+  return move line
+}
+
 effect fn body() -> ()
-  ! AssertionError<'static> | TreeError | JsonError | OutOfMemoryError
+  ! AssertionError<'static> | TreeError | JsonError | FileError | HostInputError | OutOfMemoryError
   ? &mut Allocator {
   let collection = run fixtures.fonts()
   let mut tree = run UiTree.make(&collection)
@@ -108,6 +139,58 @@ effect fn body() -> ()
   let quiet = run take(&mut client)
   run Testing.expect(quiet.ownedByteLength() == 0, "no news without messages")
 
+  // Back to step 2: its model comes back on the next turn, and the log says so.
+  run put(&mut client, "{\"id\":8,\"cmd\":\"silk-ui.restore\",\"seq\":2}")
+  drop run inspector.serveLocal(&mut tree)
+  run inspector.serveExtension(ID, &mut silkUi)
+  let restoring = run reply(&mut client, "\"id\":8")
+  run Testing.expect(has(&restoring, "\"restoring\":\"return to step 2\""), "restore is taken")
+  run Testing.expect(app.model.value.count == 2, "not before the turn")
+  run Testing.expect(run silkUi.apply(&mut app, &mut tree), "the turn puts it back")
+  run Testing.expect(app.model.value.count == 1, "the model after step 2")
+  run tree.frame(viewport)
+  run silkUi.record(&mut app)
+  run put(&mut client, "{\"id\":9,\"cmd\":\"silk-ui.messages\",\"since\":3}")
+  drop run inspector.serveLocal(&mut tree)
+  run inspector.serveExtension(ID, &mut silkUi)
+  let returned = run reply(&mut client, "\"id\":9")
+  run Testing.expect(
+    has(&returned, "\"cause\":\"devtools\"") && has(&returned, "\"message\":\"return to step 2\""),
+    "the return is a step of its own",
+  )
+
+  // Saved to a file and brought back from it, after the app moved on.
+  let mut files = run MachineFileSystem.make()
+  let cwd = run directory()
+  let here = run Path.fromBytes(cwd.asSlice())
+  let temporary = run FileSystem.temporaryDirectory(&here, "silk-ui-state-")
+    |> Effect.provideMut<FileSystem>(&mut files)
+  let file = run Path.joinUtf8(&temporary.path, b"counter.json")
+  let name = Path.view(&file).unwrapOr("")
+  run put(&mut client, String.view(&run fileRequest("10", "silk-ui.save", name)))
+  drop run inspector.serveLocal(&mut tree)
+  run inspector.serveExtension(ID, &mut silkUi)
+  let saved = run reply(&mut client, "\"id\":10")
+  run Testing.expect(has(&saved, "\"ok\":true"), "saved")
+  run Testing.expect(has(&saved, "\"step\":4"), "saved at step 4")
+  drop run click(&mut app, &mut tree, viewport, "+")
+  run Testing.expect(app.model.value.count == 2, "moved on")
+  run silkUi.record(&mut app)
+  run put(&mut client, String.view(&run fileRequest("11", "silk-ui.restore", name)))
+  run put(&mut client, "{\"id\":12,\"cmd\":\"silk-ui.restore\",\"seq\":99}")
+  drop run inspector.serveLocal(&mut tree)
+  run inspector.serveExtension(ID, &mut silkUi)
+  let loading = run reply(&mut client, "\"id\":11")
+  run Testing.expect(has(&loading, "\"restoring\":\"load "), "load")
+  let unknown = run reply(&mut client, "\"id\":12")
+  run Testing.expect(has(&unknown, "\"error\":\"no such step"), "an unknown step")
+  drop run silkUi.apply(&mut app, &mut tree)
+  run Testing.expect(app.model.value.count == 1, "the saved model is back")
+  run FileSystem.release(move temporary) |> Effect.provideMut<FileSystem>(&mut files)
+  run silkUi.record(&mut app)
+  drop run inspector.serveExtension(ID, &mut silkUi)
+  drop run take(&mut client)
+
   // The Program panel: hello lists it, with its view topic.
   run Testing.expect(
     has(
@@ -150,7 +233,7 @@ effect fn body() -> ()
 }
 
 test effect fn silkUiExtensionServesTheProgram() -> ()
-  ! AssertionError<'static> | TreeError | JsonError | OutOfMemoryError {
+  ! AssertionError<'static> | TreeError | JsonError | FileError | HostInputError | OutOfMemoryError {
   let mut allocator = Allocator.systemAllocatorProvider()
   run body() |> Effect.provideMut<Allocator>(&mut allocator)
 }
