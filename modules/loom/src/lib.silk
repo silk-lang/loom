@@ -16,7 +16,7 @@ pub import runtime {
   tick,
   resize
 }
-pub import tasks { Tasks }
+pub import fibers { Tasks }
 // What the inspector reads a program through: a value as text, and the steps it took.
 pub import show { Shown, Printer }
 pub import journal { Journal, Step }

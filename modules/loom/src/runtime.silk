@@ -358,7 +358,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
   }
 
   /// From now on, `drain` keeps the commands `update` returns instead of performing them, for
-  /// the host loop to run on fibers (see `tasks`). Their messages come back through `send`.
+  /// the host loop to run on fibers (see `fibers`). Their messages come back through `send`.
   pub fn deferCommands(self: &mut Self) -> () {
     self.deferring = true
   }

@@ -1,4 +1,3 @@
-import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets }
 //! A Loom app in a window: what the host silkui generates for a Loom app runs. The app's
 //! model `P` is a `Program<M, C>`; its commands may ask the window's [`Shell`] for things.
 //!
@@ -10,6 +9,7 @@ import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets 
 //!   return loom<Model, Message>(Settings { title: "My app", width: 900.0, height: 600.0, titleBar: TitleBar.Standard, titleBarHeight: 0.0, controlsLeft: 0.0, controlsTop: 0.0, inspect: true })
 //! }
 //! ```
+import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets }
 import loom.app { NoCommand }
 import loom.program { Program, CommandSet }
 import loom.shell { Shell }
@@ -99,7 +99,7 @@ effect fn launchSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources:
   let sheets = run StyleAssets.from(sources)
   let updates = run SheetWatch.from(updatePath)
   // Copy borrowed source bytes before transferring them to the app thread.
-  return launch(fn(platform: Option<Launched>) -> i32 {
+  return launch(|platform: Option<Launched>| -> i32 {
     return app<P, M>(settings, move platform, move sheets, move updates, compiler)
   })
 }
@@ -128,7 +128,7 @@ effect fn launchCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut She
 ) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
   let sheets = run StyleAssets.from(sources)
   let updates = run SheetWatch.from(updatePath)
-  return launch(fn(platform: Option<Launched>) -> i32 {
+  return launch(|platform: Option<Launched>| -> i32 {
     return appWithCommands<P, M, C>(settings, move platform, move sheets, move updates, compiler)
   })
 }

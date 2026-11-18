@@ -2,7 +2,7 @@
 name = "ui-ghostty-demo"
 description = "A simple terminal app: a shell on a PTY, drawn by ui-ghostty in a native window"
 version = "0.1.0"
-silk-version = "0.1.0-dev.74+205aea3f5b2e"
+silk-version = "0.1.0-dev.87+37fa5f8857de"
 kind = "executable"
 
 [dependencies]
@@ -10,10 +10,3 @@ ui_ghostty = { path = "..", package = "ui-ghostty" }
 ghostty_vt = { path = "../vt", package = "ghostty-vt" }
 loom = { path = "../../loom", package = "loom" }
 loom_window = { path = "../../loom/window", package = "loom-window" }
-
-[native]
-sources = [
-  { c = "native/pty_unix.c", flags = ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"], os = ["macos", "linux"] },
-  { c = "native/pty_windows.c", flags = ["-std=c11", "-O2", "-Wall", "-Wextra", "-Werror"], os = "windows" },
-]
-link = [{ library = "util", mode = "dynamic", os = "linux" }]

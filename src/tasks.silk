@@ -1,3 +1,4 @@
+import silk.build.graph { BuildError }
 import silk.cli.command { Command, CommandLine }
 import silk.cli.task { Task, TaskError, TaskSet }
 import silk.io.writer { WriterError }
@@ -8,6 +9,7 @@ import silk.system.host_input { HostInput, HostInputError }
 import task_checks { packages, unitTests, goldens }
 import task_support { setupCi }
 import task_native_cli { Tasks as NativeTasks }
+
 static if Intrinsic.targetOperatingSystem() != "windows" {
   import task_native { httpCheck, httpFixture }
 }
@@ -38,7 +40,13 @@ impl CommandLine for Tasks {
 
 impl TaskSet for Tasks {
   effect fn perform(self: Tasks) -> ()
-    ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
+    ! BuildError
+      | TaskError
+      | ProcessError
+      | FileError
+      | HostInputError
+      | OutOfMemoryError
+      | WriterError
     ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
     match move self {
       Tasks.CheckPackages => run packages()
@@ -48,7 +56,9 @@ impl TaskSet for Tasks {
       Tasks.Native { native } => run TaskSet.perform(move native)
       Tasks.Check => {
         static if Intrinsic.targetOperatingSystem() == "windows" {
-          run Task.abort("HTTP fixture lifecycle needs Windows subprocess support: https://github.com/silk-lang/silk/issues/3034")
+          run Task.abort(
+            "HTTP fixture lifecycle needs Windows subprocess support: https://github.com/silk-lang/silk/issues/3034",
+          )
         } else {
           run packages()
           run unitTests()
@@ -58,11 +68,18 @@ impl TaskSet for Tasks {
       }
       Tasks.HttpFixture => {
         static if Intrinsic.targetOperatingSystem() == "windows" {
-          run Task.abort("Windows managed subprocess support: https://github.com/silk-lang/silk/issues/3034")
-        } else { run httpFixture() }
+          run Task.abort(
+            "Windows managed subprocess support: https://github.com/silk-lang/silk/issues/3034",
+          )
+        } else {
+          run httpFixture()
+        }
       }
     }
   }
 }
 
-pub effect fn main() -> i32 ? &mut HostInput { return run Task.main<Tasks>() }
+pub effect fn main() -> i32
+  ? &mut HostInput {
+  return run Task.main<Tasks>()
+}
