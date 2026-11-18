@@ -8,4 +8,4 @@ exports = ["lib", "gallery", "exhibits"]
 [dependencies]
 loom_components = { path = "..", package = "loom-components" }
 loom = { path = "../../loom", package = "loom" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "c48387f316b06c6003c37208faa6156f2d178575", path = "modules/tree", package = "ui-tree" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "4eedb88a02ad0b86768ff37774651f8db997b17f", path = "modules/tree", package = "ui-tree" }
