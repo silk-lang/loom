@@ -122,5 +122,9 @@ pub fn eventName(kind: EventKind) -> string<'static> {
     EventKind.Scroll => "scroll"
     EventKind.PointerOver => "pointerover"
     EventKind.PointerOut => "pointerout"
+    EventKind.TouchStart => "touchstart"
+    EventKind.TouchMove => "touchmove"
+    EventKind.TouchEnd => "touchend"
+    EventKind.TouchCancel => "touchcancel"
   }
 }
