@@ -49,6 +49,7 @@ import ui_protocol.mutation {
   LISTEN_SCROLL,
   LISTEN_POINTER_OVER,
   LISTEN_POINTER_OUT,
+  LISTEN_TOUCH,
   LISTEN_LAYOUT,
   LISTEN_POINTER_CANCEL,
   LISTEN_GOT_POINTER_CAPTURE,
@@ -930,6 +931,10 @@ pub fn listenerFlag(kind: EventKind) -> u32 {
     EventKind.Scroll => LISTEN_SCROLL
     EventKind.PointerOver => LISTEN_POINTER_OVER
     EventKind.PointerOut => LISTEN_POINTER_OUT
+    EventKind.TouchStart => LISTEN_TOUCH
+    EventKind.TouchMove => LISTEN_TOUCH
+    EventKind.TouchEnd => LISTEN_TOUCH
+    EventKind.TouchCancel => LISTEN_TOUCH
   }
 }
 
