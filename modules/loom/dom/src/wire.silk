@@ -297,6 +297,17 @@ pub fn cursorName(value: Cursor) -> string<'static> {
     Cursor.RowResize => "row-resize"
     Cursor.ZoomIn => "zoom-in"
     Cursor.ZoomOut => "zoom-out"
+    Cursor.Cell => "cell"
+    Cursor.NoDrop => "no-drop"
+    Cursor.AllScroll => "all-scroll"
+    Cursor.ResizeNorth => "n-resize"
+    Cursor.ResizeEast => "e-resize"
+    Cursor.ResizeSouth => "s-resize"
+    Cursor.ResizeWest => "w-resize"
+    Cursor.ResizeNorthEast => "ne-resize"
+    Cursor.ResizeNorthWest => "nw-resize"
+    Cursor.ResizeSouthEast => "se-resize"
+    Cursor.ResizeSouthWest => "sw-resize"
   }
 }
 
