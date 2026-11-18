@@ -7,12 +7,12 @@ silk-version = "0.1.0-dev.87+37fa5f8857de"
 ui_devtools = { path = "..", package = "ui-inspect-devtools" }
 loom = { path = "../../loom", package = "loom" }
 loom_window = { path = "../../loom/window", package = "loom-window" }
-ui_tree_window = { git = "https://github.com/silk-lang/silkui.git", rev = "c51c417fb095189d297de0ffb59b12a560629302", path = "modules/tree/window", package = "ui-tree-window" }
-ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "c51c417fb095189d297de0ffb59b12a560629302", path = "modules/inspect/server", package = "ui-inspect-server" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "c51c417fb095189d297de0ffb59b12a560629302", path = "modules/tree", package = "ui-tree" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "c51c417fb095189d297de0ffb59b12a560629302", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
-font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "8223f309d714185cb36324373e8990237f744d52", path = "modules/collection", package = "font-collection" }
-atlas = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7b5b880008afdccec630e8afe3c234a9b670ae79", path = "modules/atlas", package = "graphics-atlas" }
-vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7b5b880008afdccec630e8afe3c234a9b670ae79", path = "modules/vector", package = "graphics-vector" }
+ui_tree_window = { git = "https://github.com/silk-lang/silkui.git", rev = "64173231be96018e83e4a1f5d6d00ec280204cc7", path = "modules/tree/window", package = "ui-tree-window" }
+ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "64173231be96018e83e4a1f5d6d00ec280204cc7", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "64173231be96018e83e4a1f5d6d00ec280204cc7", path = "modules/tree", package = "ui-tree" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "64173231be96018e83e4a1f5d6d00ec280204cc7", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "771a3a53bf9e370313419b0dbd8598c1b9495246", path = "modules/collection", package = "font-collection" }
+atlas = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/atlas", package = "graphics-atlas" }
+vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/vector", package = "graphics-vector" }
 window = { git = "https://github.com/silk-lang/lib-native.git", rev = "c069c8583fd56d7a4b90217b9abee021a35eb6b3", path = "modules/platform/window", package = "platform-window" }
 webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "ba018626769f673eef024abfe9c2bf1a6987d80e", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
