@@ -120,5 +120,7 @@ pub fn eventName(kind: EventKind) -> string<'static> {
     EventKind.AnimationCancel => "animationcancel"
     EventKind.SelectionChange => "selectionchange"
     EventKind.Scroll => "scroll"
+    EventKind.PointerOver => "pointerover"
+    EventKind.PointerOut => "pointerout"
   }
 }

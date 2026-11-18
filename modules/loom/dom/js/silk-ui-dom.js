@@ -47,6 +47,8 @@ const EVENT = {
   animationEnd: 25,
   animationCancel: 26,
   selectionChange: 27,
+  pointerOver: 28,
+  pointerOut: 29,
 };
 
 // The listener flag of event kind `k` is `1 << k`.
@@ -1722,6 +1724,8 @@ class Page {
     on("pointerup", (event) => this.forward(EVENT.pointerUp, event));
     on("pointercancel", (event) => this.forward(EVENT.pointerCancel, event));
     on("pointermove", (event) => this.forward(EVENT.pointerMove, event));
+    on("pointerover", (event) => this.forward(EVENT.pointerOver, event));
+    on("pointerout", (event) => this.forward(EVENT.pointerOut, event));
     on("gotpointercapture", (event) => this.forward(EVENT.gotPointerCapture, event));
     on("lostpointercapture", (event) => this.forward(EVENT.lostPointerCapture, event));
     on("click", (event) => this.forward(EVENT.click, event));

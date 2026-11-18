@@ -872,6 +872,8 @@ fn eventKind(code: u8) -> EventKind {
     24 => EventKind.AnimationIteration
     25 => EventKind.AnimationEnd
     26 => EventKind.AnimationCancel
+    28 => EventKind.PointerOver
+    29 => EventKind.PointerOut
     _ => EventKind.SelectionChange
   }
 }
