@@ -47,6 +47,8 @@ import ui_protocol.mutation {
   LISTEN_BLUR,
   LISTEN_INPUT,
   LISTEN_SCROLL,
+  LISTEN_POINTER_OVER,
+  LISTEN_POINTER_OUT,
   LISTEN_LAYOUT,
   LISTEN_POINTER_CANCEL,
   LISTEN_GOT_POINTER_CAPTURE,
@@ -926,6 +928,8 @@ pub fn listenerFlag(kind: EventKind) -> u32 {
     EventKind.AnimationCancel => LISTEN_ANIMATION_CANCEL
     EventKind.SelectionChange => LISTEN_SELECTION_CHANGE
     EventKind.Scroll => LISTEN_SCROLL
+    EventKind.PointerOver => LISTEN_POINTER_OVER
+    EventKind.PointerOut => LISTEN_POINTER_OUT
   }
 }
 
