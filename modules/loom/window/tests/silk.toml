@@ -16,6 +16,6 @@ loom_examples = { path = "../../examples", package = "loom-examples" }
 loom_inspect = { path = "../../inspect", package = "loom-inspect" }
 ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "39414ca94c830a7a2c6411b5af1a397350cc708e", path = "modules/inspect/server", package = "ui-inspect-server" }
 
-window = { git = "https://github.com/silk-lang/lib-native.git", rev = "ba018626769f673eef024abfe9c2bf1a6987d80e", path = "modules/platform/window", package = "platform-window" }
+window = { git = "https://github.com/silk-lang/lib-native.git", rev = "c069c8583fd56d7a4b90217b9abee021a35eb6b3", path = "modules/platform/window", package = "platform-window" }
 
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "2a9fa8a41a9bfbc4dfae43a9cf3898ceace9ce86", path = "modules/collection", package = "font-collection" }

@@ -13,5 +13,5 @@ ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "39414ca9
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "2a9fa8a41a9bfbc4dfae43a9cf3898ceace9ce86", path = "modules/collection", package = "font-collection" }
 atlas = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/atlas", package = "graphics-atlas" }
 vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/vector", package = "graphics-vector" }
-window = { git = "https://github.com/silk-lang/lib-native.git", rev = "ba018626769f673eef024abfe9c2bf1a6987d80e", path = "modules/platform/window", package = "platform-window" }
+window = { git = "https://github.com/silk-lang/lib-native.git", rev = "c069c8583fd56d7a4b90217b9abee021a35eb6b3", path = "modules/platform/window", package = "platform-window" }
 webgpu = { git = "https://github.com/silk-lang/lib-native.git", rev = "ba018626769f673eef024abfe9c2bf1a6987d80e", path = "modules/gpu/webgpu", package = "gpu-webgpu" }
