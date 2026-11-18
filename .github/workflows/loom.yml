@@ -95,6 +95,15 @@ jobs:
       - uses: ./.github/actions/setup-silk
       - name: Provision pinned LLVM and native tools
         run: silk task setup-ci
+      # silk test starts a test with only SystemRoot set, so the GPU DLLs setup-ci puts on PATH
+      # must sit beside the test program.
+      - name: GPU runtime DLLs beside the tests
+        run: |
+          $dev = 'build/x86_64-pc-windows-msvc/dev'
+          New-Item -ItemType Directory -Force $dev | Out-Null
+          foreach ($name in 'nonstd_dawn.dll', 'dxcompiler.dll', 'dxil.dll', 'glfw3.dll') {
+            Copy-Item (where.exe $name | Select-Object -First 1) $dev
+          }
       - name: Window host tests
         run: silk test --manifest-path modules/loom/window/tests/silk.toml --root src/tests.silk
       - name: Prepare libghostty-vt
