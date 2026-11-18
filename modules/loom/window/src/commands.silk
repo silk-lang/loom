@@ -72,7 +72,7 @@ impl<
       let command = app.takeDeferred()
       let job = run Effect.catch<SpawnError>(
         Background<M>.start(
-          fn() -> M {
+          || -> M {
             return run Perform<M, never, never>.perform(move command)
           },
         ),

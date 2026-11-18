@@ -180,7 +180,7 @@ pub effect fn main() -> i32
   // The main thread keeps the OS event loop; the app runs on its own thread.
   return run Effect.catchAll(
     launch(
-      fn(platform: Option<Launched>) -> i32 {
+      |platform: Option<Launched>| -> i32 {
         return runApp(check, shows, move platform)
       },
     ),

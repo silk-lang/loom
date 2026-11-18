@@ -22,7 +22,7 @@ import loom_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand
 import loom_examples.look { SANS }
 import loom.app { App, Context, NoCommand, Perform }
 import loom.program as program
-import loom.tasks { Tasks }
+import loom.fibers { Tasks }
 import loom.runtime { Runtime, tick, drain }
 import loom_tree.harness { click, press, locate, typeText }
 import loom.seq as seq

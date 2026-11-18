@@ -1,3 +1,4 @@
+import silk.build.graph { BuildError }
 import silk.cli.task { Task, TaskError }
 import silk.io.writer { WriterError }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
@@ -12,12 +13,27 @@ pub effect fn packages() -> ()
   ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
   ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
   run Task.silk(&["check", "--no-server", "--workspace"])
-  let portable = ["modules/loom", "modules/loom/examples", "modules/loom-components", "modules/loom-components/gallery", "modules/devtools"]
+  let portable = [
+    "modules/loom",
+    "modules/loom/examples",
+    "modules/loom-components",
+    "modules/loom-components/gallery",
+    "modules/devtools",
+  ]
   let mut at: usize = 0
   while at < portable.length {
     let directory = run rootPath(portable[at])
     let manifest = run Path.join(&directory, "silk.toml")
-    run Task.silk(&["check", "--no-server", "--manifest-path", pathText(&manifest), "--target", "wasm32-unknown-unknown"])
+    run Task.silk(
+      &[
+        "check",
+        "--no-server",
+        "--manifest-path",
+        pathText(&manifest),
+        "--target",
+        "wasm32-unknown-unknown",
+      ],
+    )
     at = at + 1
   }
 }
@@ -25,7 +41,12 @@ pub effect fn packages() -> ()
 pub effect fn unitTests() -> ()
   ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
   ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
-  let members = ["modules/loom/tests", "modules/loom/window/tests", "modules/loom-components/tests", "modules/devtools/tests"]
+  let members = [
+    "modules/loom/tests",
+    "modules/loom/window/tests",
+    "modules/loom-components/tests",
+    "modules/devtools/tests",
+  ]
   let mut at: usize = 0
   while at < members.length {
     let directory = run rootPath(members[at])
@@ -36,7 +57,13 @@ pub effect fn unitTests() -> ()
 }
 
 pub effect fn goldens() -> ()
-  ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
+  ! BuildError
+    | TaskError
+    | ProcessError
+    | FileError
+    | HostInputError
+    | OutOfMemoryError
+    | WriterError
   ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
   let members = ["modules/loom/tests", "modules/loom-components/tests", "modules/devtools/tests"]
   let mut at: usize = 0

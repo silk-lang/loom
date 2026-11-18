@@ -1,3 +1,5 @@
+import silk.build.graph { BuildError }
+
 static if Intrinsic.targetOperatingSystem() == "darwin"
   || Intrinsic.targetOperatingSystem() == "linux" {
   import silk.cli.task { Task, TaskError }
@@ -294,7 +296,13 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
   }
 
   pub effect fn embedded() -> ()
-    ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
+    ! BuildError
+      | TaskError
+      | ProcessError
+      | FileError
+      | HostInputError
+      | OutOfMemoryError
+      | WriterError
     ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
     let binary = run build("modules/loom/demo", false, false)
     let cli = run silkuiPackage("modules/inspect/cli")
@@ -555,7 +563,13 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     buildOnly: bool,
     debug: bool,
   ) -> ()
-    ! TaskError | ProcessError | FileError | HostInputError | OutOfMemoryError | WriterError
+    ! BuildError
+      | TaskError
+      | ProcessError
+      | FileError
+      | HostInputError
+      | OutOfMemoryError
+      | WriterError
     ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
     run require(
       mode == "run" || mode == "todo" || mode == "external" || mode == "check"

@@ -83,7 +83,7 @@ effect fn notes(platform: Option<Launched>) -> i32
   let poster = window.poster()
   let worker = run Effect.catchAll(
     Background<()>.start(
-      fn() -> () {
+      || -> () {
         let poster = move poster
         poster.post(PORT_WORKER, "A worker thread says hello")
       },
@@ -116,7 +116,7 @@ fn app(platform: Option<Launched>) -> i32 {
 pub fn main() -> i32 {
   // The main thread keeps the OS event loop; the app runs on its own thread.
   return launch(
-    fn(platform: Option<Launched>) -> i32 {
+    |platform: Option<Launched>| -> i32 {
       return app(move platform)
     },
   )
