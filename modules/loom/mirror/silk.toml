@@ -8,4 +8,4 @@ silk-version = "0.1.0-dev.87+37fa5f8857de"
 loom = { path = "..", package = "loom" }
 loom_window = { path = "../window", package = "loom-window" }
 loom_examples = { path = "../examples", package = "loom-examples" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "66e31a4ce720568a2035f20783fe953af75565b6", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "0858e2a924b399d6a9d5aa50e70f499a291bc3ca", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }

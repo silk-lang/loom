@@ -6,11 +6,11 @@ silk-version = "0.1.0-dev.87+37fa5f8857de"
 [dependencies]
 loom = { path = "../../loom", package = "loom" }
 loom_window = { path = "../../loom/window", package = "loom-window" }
-ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "66e31a4ce720568a2035f20783fe953af75565b6", path = "modules/inspect/server", package = "ui-inspect-server" }
+ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "0858e2a924b399d6a9d5aa50e70f499a291bc3ca", path = "modules/inspect/server", package = "ui-inspect-server" }
 loom_components = { path = "..", package = "loom-components" }
 ui_gallery = { path = "../gallery", package = "loom-components-gallery" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "66e31a4ce720568a2035f20783fe953af75565b6", path = "modules/tree", package = "ui-tree" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "66e31a4ce720568a2035f20783fe953af75565b6", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "0858e2a924b399d6a9d5aa50e70f499a291bc3ca", path = "modules/tree", package = "ui-tree" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "0858e2a924b399d6a9d5aa50e70f499a291bc3ca", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "835a73e071830864850e4fd20eda4e5f44612470", path = "modules/collection", package = "font-collection" }
 atlas = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7b5b880008afdccec630e8afe3c234a9b670ae79", path = "modules/atlas", package = "graphics-atlas" }
 vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "7b5b880008afdccec630e8afe3c234a9b670ae79", path = "modules/vector", package = "graphics-vector" }
