@@ -32,7 +32,7 @@ fn start(platform: Option<Launched>) -> i32 {
 
 pub fn main() -> i32 {
   return launch(
-    fn(platform: Option<Launched>) -> i32 {
+    |platform: Option<Launched>| -> i32 {
       return start(move platform)
     },
   )

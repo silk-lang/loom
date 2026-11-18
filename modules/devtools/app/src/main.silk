@@ -35,7 +35,16 @@ import ui_tree.mutation { FIRST_ROOT }
 import silk.json.scanner { JsonError }
 import silk.json.value { Json, Value }
 import loom.runtime { Runtime }
-import loom_window.lib { HostPlatform, Launched, WindowContent, launch, RunOptions, runWindowHosted, startInspector, StartedGpu }
+import loom_window.lib {
+  HostPlatform,
+  Launched,
+  WindowContent,
+  launch,
+  RunOptions,
+  runWindowHosted,
+  startInspector,
+  StartedGpu
+}
 import ui_tree_window.platform_thread { Nudge }
 import ui_tree_window.clock { Clock }
 import ui_tree.legacy { UiTree }
@@ -704,7 +713,7 @@ pub effect fn main() -> i32
   // The main thread keeps the OS event loop; the app runs on its own thread.
   return run Effect.catchAll(
     launch(
-      fn(platform: Option<Launched>) -> i32 {
+      |platform: Option<Launched>| -> i32 {
         return runApp(move args, move platform)
       },
     ),

@@ -227,7 +227,7 @@ answers them when it next serves the extension, and the reply comes with the not
 ```sh
 silk test --manifest-path modules/devtools/tests/silk.toml --root src/tests.silk
 silk build --manifest-path modules/devtools/tests/silk.toml
-build/llvm/x86_64-unknown-linux-gnu/debug/ui-inspect-devtools-tests modules/devtools/tests/goldens [--update]
+build/x86_64-unknown-linux-gnu/dev/ui-inspect-devtools-tests modules/devtools/tests/goldens [--update]
 silk task native devtools check
 ```
 
