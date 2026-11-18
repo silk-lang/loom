@@ -30,8 +30,16 @@ const HOST_OS: string = Intrinsic.targetOperatingSystem()
 
 const HOST_ARCH: string = Intrinsic.targetArchitecture()
 
+// The host's spelling: on Windows a portable `/C:/...` path loses its leading `/`, as git and
+// other programs need.
 pub fn pathText(path: &Path) -> string {
-  return Path.view(path) |> Option<string>.unwrapOr("")
+  let value = Path.view(path) |> Option<string>.unwrapOr("")
+  static if HOST_OS == "windows" {
+    if String.byteLength(value) >= 3 && String.utf8Bytes(value)[2] == 58 {
+      return String.slice(value, 1, String.byteLength(value) - 1)
+    }
+  }
+  return value
 }
 
 pub effect fn require(condition: bool, message: string) -> ()
