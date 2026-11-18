@@ -8,8 +8,8 @@ loom_components = { path = "..", package = "loom-components" }
 ui_gallery = { path = "../gallery", package = "loom-components-gallery" }
 loom = { path = "../../loom", package = "loom" }
 loom_tree = { path = "../../loom/tree", package = "loom-tree" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "e21ba8ee723d6daa3f26a25516ae17515edeefa6", path = "modules/tree", package = "ui-tree" }
-ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "e21ba8ee723d6daa3f26a25516ae17515edeefa6", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "f10baccc316420750a384a822c6c2d08355fc531", path = "modules/tree", package = "ui-tree" }
+ui_fixtures = { git = "https://github.com/silk-lang/silkui.git", rev = "f10baccc316420750a384a822c6c2d08355fc531", path = "modules/tree/fixtures", package = "ui-tree-fixtures" }
 font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "2a9fa8a41a9bfbc4dfae43a9cf3898ceace9ce86", path = "modules/collection", package = "font-collection" }
 codec = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/codec", package = "graphics-codec" }
 vector = { git = "https://github.com/silk-lang/lib-graphics.git", rev = "5352021805b6515f069ee41fa6a52f4bf1ec8157", path = "modules/vector", package = "graphics-vector" }
