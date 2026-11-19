@@ -420,7 +420,7 @@ fn onTopBar(tree: &UiTree<'_>, x: f32, y: f32) -> bool {
   let mut slot = tree.slotOf(tree.hitTest(x, y))
   while slot != NONE {
     let node = tree.node(slot)
-    if String.view(&node.testId) == "toolbar" {
+    if node.testId() == "toolbar" {
       return true
     }
     if node.listeners != 0 {
