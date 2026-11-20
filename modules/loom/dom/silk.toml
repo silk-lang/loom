@@ -8,6 +8,6 @@ exports = ["lib", "wire", "dom", "page", "html", "grid_css"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }
-ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "38bfab242a7c49f25fac5a5135646571174dcf07", path = "modules/tree", package = "ui-tree" }
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "38bfab242a7c49f25fac5a5135646571174dcf07", path = "modules/protocol", package = "ui-protocol" }
-css_style = { git = "https://github.com/silk-lang/lib-css.git", rev = "c4bce4e90c7341d4974d578d9712072076da4d3c", path = "modules/style", package = "css-style" }
+ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "0ecaa26d0275f3579944c81676a8fa5eefe5ecbe", path = "modules/tree", package = "ui-tree" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "0ecaa26d0275f3579944c81676a8fa5eefe5ecbe", path = "modules/protocol", package = "ui-protocol" }
+css_style = { git = "https://github.com/silk-lang/lib-css.git", rev = "434ad4d0526ed3e9feb3d545e31536f9b82f3f79", path = "modules/style", package = "css-style" }
