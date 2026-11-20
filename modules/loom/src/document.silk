@@ -12,6 +12,7 @@
 import heap { Heap }
 import program { Submodel }
 import ui { Ui, Span, PassSizes, LazyHints }
+pub import ui { Surface }
 // What a view names next to the builder.
 pub import ui { Reply, DefaultAction }
 pub import ui_protocol.grid { Grid }
@@ -61,6 +62,8 @@ enum Shape {
   Icon,
   /// Its `text` is a span of the tree's `canvas`.
   Canvas,
+  /// A canvas that shows a GPU surface (`Op.Shows`).
+  Surface,
   /// Its children go in the overlay layer, in the overlay `key` names.
   Overlay,
   /// Its children become children of the node that holds it.
@@ -122,6 +125,8 @@ union Op {
   /// The template at `index` of the tree's `grids`.
   Template { index: u32 },
   Source { text: Span },
+  /// The GPU surface a `Shape.Surface` shows.
+  Shows { surface: Surface },
   /// The node listens for `kind`, and has nothing to answer in this pass.
   Listen { kind: EventKind },
   /// The node answers the record of this pass with the reply in `slot`.
@@ -505,6 +510,13 @@ impl<M> Document<M> {
       tree.heap.alloc(tree.canvas.appendSlice(commands))
     }
     return tree.add(Shape.Canvas, span, &[], attributes, &[])
+  }
+
+  /// A canvas showing GPU surface `surface`: what the application draws with WebGPU on a
+  /// device of its own and presents (`ui_tree_window.gpu_canvas`). Size it with `h.style`;
+  /// without a size it has the surface's size in pixels, as a `<canvas>` does.
+  pub fn surface(self: &Self, surface: Surface, attributes: &[Attr]) -> Node {
+    return self.node(Shape.Surface, &[self.op(Op.Shows { surface: surface })], attributes, &[])
   }
 
   /// `children`, in the overlay layer: above the rest of the view, whatever node holds the
@@ -1360,6 +1372,9 @@ fn apply<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, start: u32, count
       Op.Source { text } => {
         ui.source(tree.text(text))
       }
+      Op.Shows { surface } => {
+        ui.shows(surface)
+      }
       Op.Listen { kind } => {
         ui.on(kind, |event| Reply<M>.Pass)
       }
@@ -1425,6 +1440,8 @@ fn place<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, index: u32) -> ()
       ),
       |ui| fill<M>(&mut ui, tree, slots, record),
     )
+  } else if record.shape == Shape.Surface {
+    ui.node(NodeKind.Canvas, |ui| fill<M>(&mut ui, tree, slots, record))
   } else if record.shape == Shape.Text {
     ui.text(tree.text(record.text))
   } else if record.shape == Shape.Input {
