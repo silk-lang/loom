@@ -50,6 +50,8 @@ import ui_protocol.mutation {
   LISTEN_POINTER_OVER,
   LISTEN_POINTER_OUT,
   LISTEN_TOUCH,
+  LISTEN_CLIPBOARD,
+  LISTEN_BEFORE_INPUT,
   LISTEN_LAYOUT,
   LISTEN_POINTER_CANCEL,
   LISTEN_GOT_POINTER_CAPTURE,
@@ -935,6 +937,10 @@ pub fn listenerFlag(kind: EventKind) -> u32 {
     EventKind.TouchMove => LISTEN_TOUCH
     EventKind.TouchEnd => LISTEN_TOUCH
     EventKind.TouchCancel => LISTEN_TOUCH
+    EventKind.Copy => LISTEN_CLIPBOARD
+    EventKind.Cut => LISTEN_CLIPBOARD
+    EventKind.Paste => LISTEN_CLIPBOARD
+    EventKind.BeforeInput => LISTEN_BEFORE_INPUT
   }
 }
 

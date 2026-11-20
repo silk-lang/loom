@@ -126,5 +126,9 @@ pub fn eventName(kind: EventKind) -> string<'static> {
     EventKind.TouchMove => "touchmove"
     EventKind.TouchEnd => "touchend"
     EventKind.TouchCancel => "touchcancel"
+    EventKind.Copy => "copy"
+    EventKind.Cut => "cut"
+    EventKind.Paste => "paste"
+    EventKind.BeforeInput => "beforeinput"
   }
 }

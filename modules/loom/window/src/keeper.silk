@@ -306,10 +306,10 @@ fn digestOf(tree: &UiTree<'_>) -> u64 {
   let mut i: usize = 0
   while i < nodes.length {
     let node = &nodes[i]
-    if node.live && (node.scrollX != 0.0 || node.scrollY != 0.0) {
+    if node.live && (node.scrollX() != 0.0 || node.scrollY() != 0.0) {
       hash = ((hash ^ usize.toU64(i)) * 16777619) & 4294967295
-      hash = ((hash ^ u32.toU64(f32.toBits(node.scrollX))) * 16777619) & 4294967295
-      hash = ((hash ^ u32.toU64(f32.toBits(node.scrollY))) * 16777619) & 4294967295
+      hash = ((hash ^ u32.toU64(f32.toBits(node.scrollX()))) * 16777619) & 4294967295
+      hash = ((hash ^ u32.toU64(f32.toBits(node.scrollY()))) * 16777619) & 4294967295
     }
     i = i + 1
   }
@@ -379,15 +379,17 @@ effect fn stateOf(tree: &UiTree<'_>) -> String
   let mut i: usize = 0
   while i < nodes.length {
     let node = &nodes[i]
-    if node.live && (node.scrollX != 0.0 || node.scrollY != 0.0) {
+    if node.live && (node.scrollX() != 0.0 || node.scrollY() != 0.0) {
       if !first {
         run out.append(",")
       }
       first = false
       run out.append("[")
-      run write(&node.scrollX, &mut out)
+      let scrollX = node.scrollX()
+      run write(&scrollX, &mut out)
       run out.append(",")
-      run write(&node.scrollY, &mut out)
+      let scrollY = node.scrollY()
+      run write(&scrollY, &mut out)
       run writePlace(tree, usize.toU32(i), &mut out)
       run out.append("]")
     }
@@ -467,7 +469,7 @@ effect fn putBack(tree: &mut UiTree<'_>, saved: &Value, focus: bool) -> bool
   let mut i: usize = 0
   while i < slots.length {
     let node = tree.node(slots[i])
-    if node.scrollX != at[2 * i] || node.scrollY != at[2 * i + 1] {
+    if node.scrollX() != at[2 * i] || node.scrollY() != at[2 * i + 1] {
       return false
     }
     i = i + 1

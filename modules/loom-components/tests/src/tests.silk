@@ -294,8 +294,8 @@ effect fn sliderBody() -> ()
   run Testing.expect(app.model.volume == 80.0, "a click on the track jumps there")
   let range = tree.node(tree.slotOf(track.id))
   run Testing.expect(
-    range.hasValueRange && range.valueNow == 80.0 && range.valueMin == 0.0
-      && range.valueMax == 100.0,
+    range.hasValueRange() && range.valueNow() == 80.0 && range.valueMin() == 0.0
+      && range.valueMax() == 100.0,
     "slider accessibility range follows the actual controlled value",
   )
   run Testing.expect(focusedId(&tree) == track.id, "and focuses the slider")

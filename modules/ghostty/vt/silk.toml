@@ -2,7 +2,7 @@
 name = "ghostty-vt"
 description = "Terminal emulation through libghostty-vt: owned terminals, input and mouse encoding, selection, styled snapshots and text export"
 version = "0.1.0"
-silk-version = "0.1.0-dev.88+17d1a1b4d501"
+silk-version = "0.1.0-dev.90+43166993a300"
 kind = "library"
 exports = ["terminal"]
 
