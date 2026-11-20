@@ -23,6 +23,7 @@ import heap { Heap }
 import aria { AriaField, AriaValues }
 import ui_protocol.aria { isNamedAttribute }
 import ui_protocol.mutation {
+  NO_SURFACE,
   NodeKind,
   StyleState,
   FlexDirection,
@@ -116,6 +117,33 @@ fn shifted(span: Span, shift: u32) -> Span {
     return Span.empty()
   }
   return Span { start: u32.wrappingAdd(span.start, shift), length: span.length }
+}
+
+/// A GPU surface for a canvas node: the number its frames are presented under, its size in
+/// pixels and whether it has no transparent pixels.
+pub struct Surface {
+  pub id: u32,
+  pub width: u32,
+  pub height: u32,
+  pub opaque: bool,
+}
+
+impl Copy for Surface {}
+
+impl Surface {
+  /// No surface: the canvas draws its commands.
+  pub fn none() -> Surface {
+    return Surface { id: NO_SURFACE, width: 0, height: 0, opaque: false }
+  }
+
+  pub fn isNone(self: &Self) -> bool {
+    return self.id == NO_SURFACE
+  }
+
+  pub fn same(self: &Self, other: &Surface) -> bool {
+    return self.id == other.id && self.width == other.width && self.height == other.height
+      && self.opaque == other.opaque
+  }
 }
 
 /// A byte range in the arena's text pool, or a range in its canvas pool.
@@ -270,6 +298,8 @@ pub struct Extra {
   pub grid: u32,
   pub hasCanvas: bool,
   pub canvas: Span,
+  /// The GPU surface a canvas shows instead of commands ([`Ui.surface`]), or none.
+  pub surface: Surface,
   /// The other ARIA states and properties (`level`, `live`, `pressed` ...), and the text ones.
   pub aria: AriaValues,
   pub description: Span,
@@ -327,6 +357,7 @@ impl Extra {
       grid: NO_ENTRY,
       hasCanvas: false,
       canvas: Span.empty(),
+      surface: Surface.none(),
       aria: AriaValues.make(),
       description: Span.empty(),
       roleDescription: Span.empty(),
@@ -1787,6 +1818,27 @@ impl<M> Ui<M> {
           extra.hasCanvas = true
           extra.canvas = Span { start: start, length: usize.toU32(commands.length) }
         }
+        body(&mut ui)
+      },
+    )
+  }
+
+  /// Makes the open canvas node show GPU surface `surface` instead of commands.
+  pub fn shows(self: &mut Self, surface: Surface) -> () {
+    if !self.dispatching {
+      let extra = self.extraMut()
+      extra.surface = surface
+    }
+  }
+
+  /// A canvas node showing GPU surface `surface`: what the application draws with WebGPU on
+  /// a device of its own and presents (`ui_tree_window.gpu_canvas`, `Surface.of`). The node
+  /// has the surface's size in pixels as its natural size, as a `<canvas>` does.
+  pub fn surface(self: &mut Self, surface: Surface, body: fn(&mut Ui<M>) -> ()) -> () {
+    self.node(
+      NodeKind.Canvas,
+      |ui| {
+        ui.shows(surface)
         body(&mut ui)
       },
     )

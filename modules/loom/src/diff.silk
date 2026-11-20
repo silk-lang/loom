@@ -701,6 +701,17 @@ effect fn props(
         run out.append(Mutation.SetCanvas { id: id, commands: move list })
       }
     }
+    if (!ex.surface.same(&px.surface)) || (fresh && !ex.surface.isNone()) {
+      run out.append(
+        Mutation.SetCanvasSurface {
+          id: id,
+          surface: ex.surface.id,
+          width: ex.surface.width,
+          height: ex.surface.height,
+          opaque: ex.surface.opaque,
+        },
+      )
+    }
   }
   if entry.extra != 0 || prior.extra != 0 {
     let ex = next.extraCopy(entry)

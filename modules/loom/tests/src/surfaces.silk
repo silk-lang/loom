@@ -1,0 +1,79 @@
+//! A canvas that shows a GPU surface through the view: the node gets the surface, a change of
+//! surface reaches it, and a view without one gives the node back to its commands.
+import loom.app { App, Context, NoCommand }
+import loom.runtime { Runtime }
+import loom.ui { Ui, Surface }
+import ui_tree.legacy { UiTree, TreeError, FrameInput }
+import ui_tree.inspect { findAll }
+import ui_tree.mutation { NO_SURFACE }
+import ui_fixtures.fixtures as fixtures
+import silk.collections.list { List }
+import silk.core.effect { Effect }
+import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.testing.testing { Testing, AssertionError }
+
+struct Example {
+  shown: Surface,
+}
+
+enum Message {
+  Change
+}
+
+impl App<Message, NoCommand> for Example {
+  fn update(self: &mut Self, message: Message, cx: &mut Context<NoCommand>) -> () {}
+
+  fn view(self: &Self, ui: &mut Ui<Message>) -> () {
+    ui.surface(self.shown, |ui| ui.testId("scene"))
+  }
+}
+
+fn viewport() -> FrameInput {
+  return FrameInput { width: 400.0, height: 300.0, scale: 1.0, time: 0.0 }
+}
+
+/// The surface of the node with test id "scene", `NO_SURFACE` when there is no such node.
+effect fn shown(tree: &UiTree<'_>) -> u32
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut found = List<u32>.make()
+  run findAll(tree, "scene", &mut found)
+  if found.length() == 0 {
+    return NO_SURFACE
+  }
+  return tree.node(tree.slotOf(found.get(0))).surface().id
+}
+
+effect fn body() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError
+  ? &mut Allocator {
+  let fonts = run fixtures.fonts()
+  let mut tree = run UiTree.make(&fonts)
+  let mut app = Runtime<Example, Message, NoCommand>.make(
+    Example { shown: Surface { id: 5, width: 200, height: 100, opaque: true } },
+  )
+  run app.start(&mut tree, 0.0)
+  run tree.frame(viewport())
+  run Testing.expect((run shown(&tree)) == 5, "the canvas of the first render shows its surface")
+
+  app.model.shown = Surface { id: 6, width: 200, height: 100, opaque: true }
+  run app.render(&mut tree)
+  run tree.frame(viewport())
+  run Testing.expect((run shown(&tree)) == 6, "a view that names another surface changes it")
+
+  app.model.shown = Surface.none()
+  run app.render(&mut tree)
+  run tree.frame(viewport())
+  let mut found = List<u32>.make()
+  run findAll(&tree, "scene", &mut found)
+  run Testing.expect(
+    found.length() == 1 && (run shown(&tree)) == NO_SURFACE,
+    "a view without a surface gives the canvas back to its commands",
+  )
+}
+
+test effect fn canvasShowsTheSurfaceOfItsView() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run body() |> Effect.provideMut<Allocator>(&mut allocator)
+}

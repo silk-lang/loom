@@ -5,6 +5,7 @@ import ui_tree.css { number }
 // Imported only to register each module's tests with this root.
 import virtual_lists as _virtual_lists
 import images as _images
+import surfaces as _surfaces
 import fonts as _fonts
 import layout_capabilities as _layout_capabilities
 import submodels as _submodels
