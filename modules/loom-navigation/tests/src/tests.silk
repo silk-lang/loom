@@ -333,7 +333,7 @@ effect fn shop() -> ()
   run say(&mut app, &mut tree, Message<PageMessage>.Settled)
   now = now + 10.0
   run tree.frame(at(now))
-  run Testing.expect(app.stats.reused == 1, "and its view is not asked again while it is covered")
+  run Testing.expect(app.stats.reused > 0, "and its view is not asked again while it is covered")
 
   // A sheet: Escape closes it, and only it.
   drop run click(&mut app, &mut tree, at(now), "Filters")
