@@ -5,7 +5,7 @@
 //!
 //! | Name | What |
 //! |---|---|
-//! | `silk-ui.program` | Whether a program is attached, its counters, subscriptions and model now |
+//! | `silk-ui.program` | Whether a program is attached, its counters, subscriptions, running commands and model now |
 //! | `silk-ui.messages` | The messages it handled after `since`, at most `limit` of the newest |
 //! | `silk-ui.model` | The model after step `seq` (the last without it) and its line diff |
 //! | `silk-ui.restore` | Puts the model of step `seq`, or of the state saved in `file`, back |
@@ -301,7 +301,7 @@ impl SilkUi {
     run info.tool(
       "program",
       "The program",
-      "The silk-ui program behind the UI: its model now as indented text, the subscriptions the model asks for, and counters (renders, messages, commands, mutations of the last render, nodes and how many it reused). attached is false until the program is attached.",
+      "The silk-ui program behind the UI: its model now as indented text, the subscriptions the model asks for, the commands that run or wait now (work, one line each, with the owner they run for), and counters (renders, messages, commands, mutations of the last render, nodes and how many it reused). attached is false until the program is attached.",
       "",
       true,
     )
@@ -345,6 +345,10 @@ impl SilkUi {
     if !runtime.journal.on {
       run runtime.record()
       self.log.attached = true
+    }
+    // Commands start and end between steps, so they are read on every call.
+    if runtime.busy() || self.log.work.length() != 0 {
+      self.log.work = run runtime.workLines()
     }
     if runtime.journal.steps.length() == 0 {
       return ()

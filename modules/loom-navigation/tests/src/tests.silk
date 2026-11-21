@@ -13,7 +13,7 @@ import loom.lib {
 }
 import loom.program as program
 import loom.program { Hosted, Run }
-import loom.runtime { Runtime, tick, drain }
+import loom.runtime { Runtime, tick, drain, navigate }
 import loom_tree.harness { click, press }
 import ui_tree.inspect { findAll }
 import ui_tree.legacy { UiTree, TreeError, FrameInput }
@@ -23,6 +23,7 @@ import silk.core.effect { Effect }
 import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.testing.testing { Testing, AssertionError }
+import silk.text.string { String }
 
 union Page {
   Items { loaded: bool, shows: u32 },
@@ -144,6 +145,7 @@ impl Screen<PageMessage, PageCommand> for Page {
             h.button(&[h.onClick(PageMessage.WentHome)], &[h.text("Home")]),
             h.button(&[h.onClick(PageMessage.Swapped)], &[h.text("Swap")]),
             h.button(&[h.onClick(PageMessage.Edited)], &[h.text("Edit")]),
+            h.link("/detail/7", &[], &[h.text("Seven")]),
           ],
         )
       }
@@ -177,6 +179,30 @@ impl Screen<PageMessage, PageCommand> for Page {
   fn shown(model: &Page) -> Option<PageMessage> {
     return Option<PageMessage>.some(PageMessage.Shown)
   }
+
+  effect fn path(model: &Page) -> Option<String>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let text: string = match &model.* {
+      Page.Items { .. } => "/"
+      Page.Detail { id, .. } => if id == 1 { "/detail/1" } else if id == 7 { "/detail/7" } else { "/detail/other" }
+      // The sheet has no address: the location stays at the screen under it.
+      Page.Filters => { return Option<String>.none() }
+    }
+    return Option<String>.some(run String.copy(text))
+  }
+
+  effect fn open(path: string) -> Option<Page>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    if path == "/detail/1" {
+      return Option<Page>.some(Page.Detail { id: 1, loaded: false, dirty: false })
+    }
+    if path == "/detail/7" {
+      return Option<Page>.some(Page.Detail { id: 7, loaded: false, dirty: false })
+    }
+    return Option<Page>.none()
+  }
 }
 
 type Msg = Message<PageMessage>
@@ -192,7 +218,7 @@ impl Program<Msg, Cmd> for Shop {
   effect fn init() -> Update<Shop, Cmd, NoOutput>
     ! OutOfMemoryError
     ? &mut Allocator {
-    let stack = run Stack<Page>.of(1, Page.Items { loaded: false, shows: 0 }, Presentation.Push)
+    let stack = (run Stack<Page>.of(1, Page.Items { loaded: false, shows: 0 }, Presentation.Push)).withLinks()
     let commands = run Submodel<Msg, Cmd, Out>.start(&stack)
     return Update<Shop, Cmd, NoOutput>.batch(Shop { stack: move stack, exits: 0 }, move commands)
   }
@@ -341,11 +367,11 @@ effect fn shop() -> ()
   run tree.frame(at(now))
   run Testing.expect(app.model.value.stack.depth() == 3, "the sheet is a screen")
   run Testing.expect((run count(&mut tree, "Deeper")) == 1, "the screen under a sheet stays")
-  run say(&mut app, &mut tree, Message<PageMessage>.Escape)
+  run press(&mut app, &mut tree, at(now), "Escape", 0)
   now = now + 10.0
   run tree.frame(at(now))
   run Testing.expect(app.model.value.stack.depth() == 2, "Escape closes the sheet")
-  run say(&mut app, &mut tree, Message<PageMessage>.Escape)
+  run press(&mut app, &mut tree, at(now), "Escape", 0)
   now = now + 10.0
   run tree.frame(at(now))
   run Testing.expect(app.model.value.stack.depth() == 2, "Escape leaves a pushed screen")
@@ -417,4 +443,107 @@ effect fn shop() -> ()
   now = now + 10.0
   run tree.frame(at(now))
   run Testing.expect(app.model.value.exits == 1, "back at the root is reported")
+
+  // Links: the location follows the top screen, and the stack follows the location.
+  run Testing.expect(app.location() == "/", "the location is the first screen's path")
+  drop run click(&mut app, &mut tree, at(now), "Open 1")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.location() == "/detail/1", "a push moves the location to the new screen's path")
+  run navigate(&mut app, &mut tree, "/detail/7")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 3, "a link to a path pushes the screen it opens")
+  run navigate(&mut app, &mut tree, "/detail/1")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 2, "history going back to a screen on the stack pops to it")
+  run navigate(&mut app, &mut tree, "/detail/7")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run say(&mut app, &mut tree, Message<PageMessage>.Back)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(
+    app.model.value.stack.depth() == 2 && app.location() == "/detail/1",
+    "back from a linked screen pops it and the location follows",
+  )
+  run navigate(&mut app, &mut tree, "/nowhere")
+  run Testing.expect(app.model.value.stack.depth() == 2, "a path that opens nothing changes nothing")
+  // A click on a link is the runtime's: that answer is for the click only, and the key
+  // pressed next still has its default.
+  run settle(&mut app, &mut tree)
+  now = now + 10.0
+  run tree.frame(at(now))
+  drop run click(&mut app, &mut tree, at(now), "Seven")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 3, "a click on a link pushes the screen it opens")
+  run press(&mut app, &mut tree, at(now), "BrowserBack", 0)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 2, "the back key right after a link pops it")
+  // Back asked twice from a node that was covered in between: the node last pressed is in
+  // the screen that shows again.
+  run settle(&mut app, &mut tree)
+  now = now + 10.0
+  run tree.frame(at(now))
+  drop run click(&mut app, &mut tree, at(now), "Deeper")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 3, "a screen is pushed from a button")
+  run press(&mut app, &mut tree, at(now), "BrowserBack", 0)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 2, "the back key pops it")
+  run press(&mut app, &mut tree, at(now), "BrowserBack", 0)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(app.model.value.stack.depth() == 1, "and again from the screen that shows again")
+  drop run click(&mut app, &mut tree, at(now), "Open 1")
+  now = now + 10.0
+  run tree.frame(at(now))
+  run settle(&mut app, &mut tree)
+  now = now + 1000.0
+  run tree.frame(at(now))
+  run tick(&mut app, &mut tree, now, false)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run say(&mut app, &mut tree, Message<PageMessage>.Back)
+  now = now + 10.0
+  run tree.frame(at(now))
+  run Testing.expect(
+    app.model.value.stack.depth() == 1 && app.location() == "/",
+    "a pop moves the location back",
+  )
 }

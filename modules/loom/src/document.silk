@@ -131,6 +131,8 @@ union Op {
   Listen { kind: EventKind },
   /// The node answers the record of this pass with the reply in `slot`.
   Answer { kind: EventKind, slot: u32 },
+  /// As `Answer`, from a capture handler.
+  AnswerCapture { kind: EventKind, slot: u32 },
   /// A render keeps the reply in `slot` as the node's answer to a record of `kind`.
   Keep { kind: EventKind, slot: u32 },
   /// The attributes at `start..start + count` of the tree's `attrs`.
@@ -1130,6 +1132,39 @@ impl<M> Document<M> {
     return self.answer(kind, handler(event))
   }
 
+  /// Handles records of `kind` on their way down to a node below this one, before that node's
+  /// own handlers and the bubbling ones (`on`) answer: the capture phase of the DOM. A reply
+  /// that stops the event keeps it from every node below. Use it for what a container must
+  /// decide first, such as a shortcut that wins over the focused control.
+  pub fn onCapture(self: &Self, kind: EventKind, handler: fn(&Event) -> Reply<M>) -> Attr {
+    if !self.hears(kind) {
+      return self.listen(kind)
+    }
+    let anchor: u8 = 0
+    let event = unsafe Pointer.borrow(&anchor, self.event)
+    let mut other: u8 = 0
+    let tree = unsafe Pointer.borrowMut(&mut other, self.tree)
+    tree.replies = tree.replies + 1
+    let slot = tree.replies
+    let mut third: u8 = 0
+    let slots = unsafe Pointer.borrowMut(&mut third, self.slots)
+    slots.put(slot, handler(event))
+    return tree.op(Op.AnswerCapture { kind: kind, slot: slot })
+  }
+
+  /// Answers a request to close what is on top (Escape), which the tree raises after a key
+  /// nothing prevented. It starts at the focused node, else the node last pressed, else the
+  /// topmost node that listens, and bubbles: the handler that closes something stops it.
+  pub fn onCloseRequest(self: &Self, handler: fn(&Event) -> Reply<M>) -> Attr {
+    return self.on(EventKind.CloseRequest, handler)
+  }
+
+  /// Answers a request to go back or forward (Alt+Left, Cmd+[, the back button of a mouse):
+  /// `event.detail` is 0 for back and 1 for forward. It travels as a close request does.
+  pub fn onNavigate(self: &Self, handler: fn(&Event) -> Reply<M>) -> Attr {
+    return self.on(EventKind.Navigate, handler)
+  }
+
   /// Sends `message` when the node is clicked (or pressed with Enter or Space when it is a
   /// focused button).
   pub fn onClick(self: &Self, message: M) -> Attr {
@@ -1380,6 +1415,9 @@ fn apply<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, start: u32, count
       }
       Op.Answer { kind, slot } => {
         ui.on(kind, |event| take<M>(slots, slot))
+      }
+      Op.AnswerCapture { kind, slot } => {
+        ui.onCapture(kind, |event| take<M>(slots, slot))
       }
       Op.Keep { kind, slot } => {
         ui.keep(kind, take<M>(slots, slot))

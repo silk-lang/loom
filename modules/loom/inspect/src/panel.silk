@@ -59,6 +59,8 @@ pub struct ProgramPanel {
   pub subscriptions: List<String>,
   /// The subscriptions in one line, `, ` between them.
   pub subscribed: String,
+  /// The commands that run or wait, one line each.
+  pub work: List<String>,
   pub steps: List<PanelStep>,
   /// The step whose model shows, or 0.
   pub opened: u64,
@@ -92,6 +94,7 @@ impl ProgramPanel {
       line: String.make(),
       subscriptions: List<String>.make(),
       subscribed: String.make(),
+      work: List<String>.make(),
       steps: List<PanelStep>.make(),
       opened: 0,
       diff: List<DiffRow>.make(),
@@ -198,6 +201,16 @@ impl ProgramPanel {
         }
         run self.subscribed.append(String.view(&subs[s]))
         s = s + 1
+      }
+      changed = true
+    }
+    if !sameLines(&self.work, &log.work) {
+      self.work.clear()
+      let work = log.work.asSlice()
+      let mut w: usize = 0
+      while w < work.length {
+        run self.work.append(run String.copy(String.view(&work[w])))
+        w = w + 1
       }
       changed = true
     }
@@ -1096,6 +1109,21 @@ impl Program<PanelMessage, NoCommand> for ProgramPanel {
               ],
               &[
                 h.box(&[h.testId("program-line")], &[h.text(String.view(&model.line))]),
+                if model.work.length() == 0 {
+                  h.fragment(&[])
+                } else {
+                  h.column(
+                    &[h.testId("work"), h.style(&[css.color(rgb(FAINT))])],
+                    &[
+                      h.each(
+                        model.work.asSlice(),
+                        |line: &String| -> Node {
+                          return h.box(&[], &[h.text(String.view(line))])
+                        },
+                      ),
+                    ],
+                  )
+                },
                 h.row(
                   &[
                     h.testId("subscriptions"),

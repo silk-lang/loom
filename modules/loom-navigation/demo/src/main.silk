@@ -29,6 +29,9 @@ import silk.core.effect { Effect }
 import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.num.i64
+import silk.num.u64
+import silk.num.u8
+import silk.text.string { String }
 
 union Page {
   Feed { loaded: bool },
@@ -99,6 +102,78 @@ fn loading(h: &Document<PageMessage>, what: string) -> Node {
   return h.box(
     &[h.testId("loading"), h.style(&[css.padding(px(24.0)), css.color(gray(0.5))])],
     &[h.text(what)],
+  )
+}
+
+const ARTICLES: string = "/article/"
+
+/// The article `id`'s path written into `buffer`, digits last: `"/article/7"`.
+fn articlePath(id: i64, buffer: &mut [u8; 29]) -> usize {
+  let mut rest: u64 = if id < 0 { 0 } else { i64.toU64(id) }
+  let mut at: usize = 29
+  while true {
+    at = at - 1
+    buffer[at] = 48 + u64.toU8(rest % 10)
+    rest = rest / 10
+    if rest == 0 {
+      break
+    }
+  }
+  let lead = String.utf8Bytes(ARTICLES)
+  let mut i: usize = lead.length
+  while i > 0 {
+    i = i - 1
+    at = at - 1
+    buffer[at] = lead[i]
+  }
+  return at
+}
+
+/// The article a path names: `"/article/7"` is 7. `None` for any other path.
+fn articleOf(path: string) -> Option<i64> {
+  let bytes = String.utf8Bytes(path)
+  let lead = String.utf8Bytes(ARTICLES)
+  if bytes.length <= lead.length || bytes.length > lead.length + 9 {
+    return Option<i64>.none()
+  }
+  let mut i: usize = 0
+  while i < lead.length {
+    if bytes[i] != lead[i] {
+      return Option<i64>.none()
+    }
+    i = i + 1
+  }
+  let mut id: i64 = 0
+  while i < bytes.length {
+    if bytes[i] < 48 || bytes[i] > 57 {
+      return Option<i64>.none()
+    }
+    id = id * 10 + u8.toI64(bytes[i] - 48)
+    i = i + 1
+  }
+  return Option<i64>.some(id)
+}
+
+/// A link to an article. The stack is made `withLinks`, so a click pushes the article, and
+/// in a browser the link opens in a new tab like any other.
+fn related(h: &Document<PageMessage>, id: i64) -> Node {
+  let mut buffer: [u8; 29] = [0; 29]
+  let at = articlePath(id, &mut buffer)
+  let whole = unsafe String.fromUtf8Unchecked(&buffer)
+  return h.link(
+    String.slice(whole, at, 29 - at),
+    &[
+      h.testId("related"),
+      h.style(
+        &[
+          css.padding(px(10.0)),
+          css.marginTop(px(8.0)),
+          css.backgroundColor(gray(0.93)),
+          css.borderRadius(px(8.0)),
+        ],
+      ),
+    ],
+    &[h.text("A related article")],
   )
 }
 
@@ -244,7 +319,7 @@ impl Screen<PageMessage, PageCommand> for Page {
                 h.box(&[h.style(&[css.marginTop(px(12.0)), css.color(gray(0.35))])], &[
                   h.text("It took two seconds to load, on a worker thread. The window stayed live."),
                 ]),
-                action(h, "related", "A related article", PageMessage.Opened { id: id + 100 }),
+                related(h, id + 100),
                 action(h, "share", "Share", PageMessage.Shared { id: id }),
               ],
             ),
@@ -275,6 +350,31 @@ impl Screen<PageMessage, PageCommand> for Page {
     }
   }
 
+  effect fn path(model: &Page) -> Option<String>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    match &model.* {
+      Page.Feed { loaded: _ } => { return Option<String>.some(run String.copy("/")) }
+      Page.Article { id, loaded: _ } => {
+        let mut buffer: [u8; 29] = [0; 29]
+        let at = articlePath(id, &mut buffer)
+        let whole = unsafe String.fromUtf8Unchecked(&buffer)
+        return Option<String>.some(run String.copy(String.slice(whole, at, 29 - at)))
+      }
+      // The sheet has no address: the location stays at the article under it.
+      Page.Share { id: _, copied: _ } => { return Option<String>.none() }
+    }
+  }
+
+  effect fn open(path: string) -> Option<Page>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    if let Option<i64>.Some { value: id } = articleOf(path) {
+      return Option<Page>.some(Page.Article { id: id, loaded: false })
+    }
+    return Option<Page>.none()
+  }
+
   fn presentation(model: &Page) -> Presentation {
     return match &model.* {
       Page.Share { id: _, copied: _ } => Presentation.Sheet
@@ -295,7 +395,7 @@ impl Program<Msg, Cmd> for Reader {
   effect fn init() -> Update<Reader, Cmd, NoOutput>
     ! OutOfMemoryError
     ? &mut Allocator {
-    let stack = run Stack<Page>.of(1, Page.Feed { loaded: false }, Presentation.Push)
+    let stack = (run Stack<Page>.of(1, Page.Feed { loaded: false }, Presentation.Push)).withLinks()
     let commands = run Submodel<Msg, Cmd, Out>.start(&stack)
     return Update<Reader, Cmd, NoOutput>.batch(Reader { stack: move stack }, move commands)
   }

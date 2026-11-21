@@ -5,6 +5,7 @@ import loom.ui { Ui }
 import silk.collections.list { List }
 import silk.core.effect { Effect }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.text.string { String }
 import silk.testing.testing { Testing, AssertionError }
 
 struct Screens {
@@ -78,6 +79,7 @@ effect fn body() -> ()
   ? &mut Allocator {
   let mut app = Runtime<Screens, Message, Work>.make(Screens { loaded: List<u64>.make() })
   app.deferCommands()
+  run app.record()
 
   // A command that ends after its owner was cancelled says nothing.
   app.send(Message.Open { screen: 1 })
@@ -86,6 +88,14 @@ effect fn body() -> ()
   run Testing.expect(app.deferred() == 2, "both loads wait")
   let first = run app.takeWork()
   run Testing.expect(first.owner == 1 && !first.ui, "the oldest first, with its owner")
+  let lines = run app.workLines()
+  run Testing.expect(
+    lines.length() == 2 && String.startsWith(String.view(&lines.asSlice()[0]), "running ")
+      && String.endsWith(String.view(&lines.asSlice()[0]), " for 1")
+      && String.startsWith(String.view(&lines.asSlice()[1]), "waiting ")
+      && String.endsWith(String.view(&lines.asSlice()[1]), " for 2"),
+    "a host can list what runs and what waits, with the owners",
+  )
   app.send(Message.Close { screen: 1 })
   app.send(Message.Close { screen: 2 })
   drop run settle(&mut app)
@@ -95,6 +105,7 @@ effect fn body() -> ()
   run Testing.expect(!app.finish(first.ticket, move message), "and its message is dropped")
   drop run settle(&mut app)
   run Testing.expect(app.model.loaded.length() == 0 && app.inFlight() == 0, "nothing arrived")
+  run Testing.expect((run app.workLines()).length() == 0, "and nothing is listed any more")
 
   // A newer command in a slot replaces the older one, waiting or running.
   app.send(Message.Search { screen: 3, query: 1 })

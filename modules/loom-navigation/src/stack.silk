@@ -6,15 +6,14 @@ import loom.lib {
   Attr,
   Reply,
   Event,
-  EventKind,
   Submodel,
   Subscriptions,
   Update,
   Heap
 }
+import loom.heap { allocate }
 import loom.css
 import loom.css { px, percent, Position, Overflow, Property, Keyword, FlexDirection, Align }
-import loom.keys { MOD_ALT, MOD_META, MOD_CONTROL, BUTTON_BACK }
 import silk.collections.list { List }
 import silk.color.rgba { Rgba }
 import silk.core.option { Option }
@@ -93,6 +92,24 @@ pub interface Screen<M, C> {
   fn covered(model: &Self) -> Option<M> {
     return Option<M>.none()
   }
+
+  /// The screen's path, such as `"/article/12"`, for a stack made `withLinks`: the location
+  /// follows the top screen that has one. `None`, the default, for a screen with no address
+  /// of its own (a sheet).
+  effect fn path(model: &Self) -> Option<String>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return Option<String>.none()
+  }
+
+  /// The screen `path` names, for a stack made `withLinks`: what a link (`h.link`), the
+  /// address the app starts at or the browser's history puts on the stack. `None`, the
+  /// default, for a path that names no screen.
+  effect fn open(path: string) -> Option<Self>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return Option<Self>.none()
+  }
 }
 
 /// A screen on a stack. `key` names it for as long as it is there: its nodes, its
@@ -116,6 +133,7 @@ pub struct Stack<S> {
   moves: u64,
   motion: bool,
   escape: bool,
+  links: bool,
 }
 
 /// A stack's messages: a screen's own, and what moves the stack from outside.
@@ -129,6 +147,10 @@ pub union Message<M> {
   Escape,
   /// The transitions are over.
   Settled,
+  /// The location moved to `path` (a stack made `withLinks` subscribes to it): a link was
+  /// clicked, the app started at an address, or the browser's history went there. A path a
+  /// screen on the stack has pops back to that screen; any other pushes the screen it opens.
+  Located { pub path: String },
 }
 
 /// A screen's command on a stack: `owner` is the screen's key, so the command is cancelled
@@ -195,6 +217,7 @@ impl<S> Stack<S> {
       moves: 0,
       motion: true,
       escape: false,
+      links: false,
     }
     let key = stack.mint()
     run stack.entries.append(Entry<S> { key: key, screen: move root, settled: true, how: how })
@@ -205,6 +228,15 @@ impl<S> Stack<S> {
   pub fn withEscape(self: Self) -> Stack<S> {
     let mut stack = move self
     stack.escape = true
+    return move stack
+  }
+
+  /// Ties the stack to the app's location through its screens' `path` and `open`: the
+  /// location follows the top screen, a link to a screen's path pushes it, and going back in
+  /// a browser's history pops. One stack of an app should have it.
+  pub fn withLinks(self: Self) -> Stack<S> {
+    let mut stack = move self
+    stack.links = true
     return move stack
   }
 
@@ -486,10 +518,81 @@ pub effect fn perform<S: Screen<M, C>, M, C>(stack: Stack<S>, action: Action<S>)
     destination: Option<String>.none(),
     out: Option<Out>.none(),
   }
+  let before = run address<S, M, C>(&stack)
   let mut actions = List<Action<S>>.make()
   run actions.append(move action)
   run finish<S, M, C>(&mut stack, &mut pending, &mut actions)
+  run follow<S, M, C>(&stack, move before, &mut pending)
   return done<S, C>(move stack, move pending)
+}
+
+/// The path of the topmost screen that has one, on a stack made `withLinks`.
+effect fn address<S: Screen<M, C>, M, C>(stack: &Stack<S>) -> Option<String>
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  if !stack.links {
+    return Option<String>.none()
+  }
+  let entries = stack.entries.asSlice()
+  let mut i = entries.length
+  while i > 0 {
+    i = i - 1
+    let path = run Screen<M, C>.path(&entries[i].screen)
+    if path.isSome() {
+      return move path
+    }
+  }
+  return Option<String>.none()
+}
+
+fn samePath(a: &Option<String>, b: &Option<String>) -> bool {
+  return match &a.* {
+    Option.Some { value: left } => match &b.* {
+      Option.Some { value: right } => String.view(&left) == String.view(&right)
+      Option.None => false
+    }
+    Option.None => b.isNone()
+  }
+}
+
+/// Moves the location to where the stack is now, when an update changed that from `before`
+/// and no screen named a destination itself.
+effect fn follow<S: Screen<M, C>, M, C>(stack: &Stack<S>, before: Option<String>, pending: &mut Pending<C>) -> ()
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  if !stack.links || pending.destination.isSome() {
+    return ()
+  }
+  let after = run address<S, M, C>(stack)
+  if after.isSome() && !samePath(&before, &after) {
+    pending.destination = move after
+  }
+}
+
+/// Goes where the location went: back to the screen that has `path`, or on to the screen
+/// `path` opens. A path the top screen already has, or one that opens nothing, changes
+/// nothing.
+effect fn locate<S: Screen<M, C>, M, C>(stack: &Stack<S>, path: string, actions: &mut List<Action<S>>) -> ()
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let entries = stack.entries.asSlice()
+  let mut topmost = true
+  let mut i = entries.length
+  while i > 0 {
+    i = i - 1
+    if let Option<String>.Some { value: own } = run Screen<M, C>.path(&entries[i].screen) {
+      if String.view(&own) == path {
+        if !topmost {
+          run actions.append(Action<S>.PopTo { key: entries[i].key })
+        }
+        return ()
+      }
+      topmost = false
+    }
+  }
+  if let Option<S>.Some { value: screen } = run Screen<M, C>.open(path) {
+    run actions.append(Action<S>.Push { screen: move screen })
+  }
 }
 
 effect fn finish<S: Screen<M, C>, M, C>(
@@ -540,7 +643,16 @@ impl<S: Screen<M, C>, M, C> Submodel<Message<M>, Owned<C>, Out> for Stack<S> {
       out: Option<Out>.none(),
     }
     let mut actions = List<Action<S>>.make()
+    let before = run address<S, M, C>(&stack)
+    let mut led = false
     match move message {
+      Message<M>.Located { path } => {
+        // The location is already there: the stack follows it and does not move it again.
+        led = true
+        if stack.links {
+          run locate<S, M, C>(&stack, String.view(&path), &mut actions)
+        }
+      }
       Message<M>.Screen { key, message: inner } => {
         if let Option<usize>.Some { value } = stack.indexOf(key) {
           run deliver<S, M, C>(&mut stack, value, move inner, &mut pending, &mut actions)
@@ -564,6 +676,11 @@ impl<S: Screen<M, C>, M, C> Submodel<Message<M>, Owned<C>, Out> for Stack<S> {
       Message<M>.Settled => stack.settle()
     }
     run finish<S, M, C>(&mut stack, &mut pending, &mut actions)
+    if led {
+      drop before
+    } else {
+      run follow<S, M, C>(&stack, move before, &mut pending)
+    }
     return done<S, C>(move stack, move pending)
   }
 
@@ -641,21 +758,21 @@ impl<S: Screen<M, C>, M, C> Submodel<Message<M>, Owned<C>, Out> for Stack<S> {
             css.minWidth(px(0.0)),
           ],
         ),
-        h.on(
-          EventKind.KeyDown,
+        // Back is the tree's to raise (see `Input.Request` in ui-protocol): it comes from the
+        // focused node or the one last pressed and bubbles, so the innermost stack that can
+        // act takes it and one that cannot lets it go on to the stack around it.
+        h.onNavigate(
           |event: &Event| -> Reply<Message<M>> {
-            return keyReply<M>(event, back, escape)
+            if back && event.detail == 0 {
+              return Reply<Message<M>>.EmitAndStop { message: Message<M>.Back }
+            }
+            return Reply<Message<M>>.Pass
           },
         ),
-        h.on(
-          EventKind.PointerDown,
+        h.onCloseRequest(
           |event: &Event| -> Reply<Message<M>> {
-            if back && event.button == BUTTON_BACK {
-              return Reply<Message<M>>.Custom {
-                message: Option<Message<M>>.some(Message<M>.Back),
-                stopPropagation: true,
-                preventDefault: true,
-              }
+            if escape {
+              return Reply<Message<M>>.EmitAndStop { message: Message<M>.Escape }
             }
             return Reply<Message<M>>.Pass
           },
@@ -678,6 +795,12 @@ impl<S: Screen<M, C>, M, C> Submodel<Message<M>, Owned<C>, Out> for Stack<S> {
       )
       i = i + 1
     }
+    if model.links {
+      subs.location(
+        u64.bitXor(LOCATED, u32.toU64(model.id)),
+        |path: string| Message<M>.Located { path: allocate(String.copy(path)) },
+      )
+    }
     if model.moving() {
       // One timer per transition: a new one starts the wait again.
       subs.every(u64.bitXor(SETTLE, model.moves), DURATION + 0.04, |time: f64| Message<M>.Settled)
@@ -689,6 +812,8 @@ const HIDDEN: u64 = 0x6c6f6f6d6e617631
 
 const SETTLE: u64 = 0x6c6f6f6d6e617632
 
+const LOCATED: u64 = 0x6c6f6f6d6e617633
+
 /// Where a screen is in its stack, for its look.
 union Place {
   Top { fresh: bool, shifted: bool },
@@ -698,27 +823,6 @@ union Place {
 }
 
 impl Copy for Place {}
-
-fn keyReply<M>(event: &Event, back: bool, escape: bool) -> Reply<Message<M>> {
-  let key = String.view(&event.key)
-  let alt = u32.bitAnd(event.modifiers, MOD_ALT) != 0
-  let command = u32.bitAnd(event.modifiers, u32.bitOr(MOD_META, MOD_CONTROL)) != 0
-  if back && ((alt && key == "ArrowLeft") || (command && key == "[") || key == "BrowserBack") {
-    return Reply<Message<M>>.Custom {
-      message: Option<Message<M>>.some(Message<M>.Back),
-      stopPropagation: true,
-      preventDefault: true,
-    }
-  }
-  if escape && key == "Escape" {
-    return Reply<Message<M>>.Custom {
-      message: Option<Message<M>>.some(Message<M>.Escape),
-      stopPropagation: true,
-      preventDefault: true,
-    }
-  }
-  return Reply<Message<M>>.Pass
-}
 
 /// The style of a screen's frame at `place`.
 fn frame<T>(h: &Document<T>, place: Place, how: Presentation, inert: bool) -> Attr {

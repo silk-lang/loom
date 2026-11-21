@@ -305,18 +305,24 @@ test effect fn keyedRowsMoveTheFewestNodes() -> ()
   run rowsBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-// Bubbling: handlers answer from the target up, and a stop ends it.
+// Bubbling: handlers answer from the target up, and a stop ends it. Capture handlers answer
+// first, from the root down.
 
 struct Nest {
   log: List<u32>,
   stop: bool,
+  /// 0: no capture handler; 1: the outer box captures clicks and lets them go on; 2: it
+  /// captures and stops them.
+  capture: u32,
 }
 
 union NestMessage {
   Outer,
   Middle,
   Inner,
+  Captured,
   ToggleStop,
+  Capture { mode: u32 },
 }
 
 impl App<NestMessage, NoCommand> for Nest {
@@ -325,6 +331,17 @@ impl App<NestMessage, NoCommand> for Nest {
     ui.box(
       |ui| {
         ui.onClick(|| NestMessage.Outer)
+        if self.capture != 0 {
+          ui.onCapture(
+            EventKind.Click,
+            |event| -> Reply<NestMessage> {
+              if self.capture == 2 {
+                return Reply<NestMessage>.EmitAndStop { message: NestMessage.Captured }
+              }
+              return Reply<NestMessage>.Emit { message: NestMessage.Captured }
+            },
+          )
+        }
         ui.box(
           |ui| {
             ui.text("sibling")
@@ -358,8 +375,13 @@ impl App<NestMessage, NoCommand> for Nest {
       NestMessage.Outer => 1
       NestMessage.Middle => 2
       NestMessage.Inner => 3
+      NestMessage.Captured => 4
       NestMessage.ToggleStop => {
         self.stop = !self.stop
+        0
+      }
+      NestMessage.Capture { mode } => {
+        self.capture = mode
         0
       }
     }
@@ -376,7 +398,7 @@ effect fn nestBody() -> ()
   let mut tree = run UiTree.make(&collection)
   run fonts(&mut tree)
   let mut app = Runtime<Nest, NestMessage, NoCommand>.make(
-    Nest { log: List<u32>.make(), stop: false },
+    Nest { log: List<u32>.make(), stop: false, capture: 0 },
   )
   run app.start(&mut tree, 0.0)
   drop run click(&mut app, &mut tree, viewport(), "target")
@@ -396,6 +418,24 @@ effect fn nestBody() -> ()
   run Testing.expect(
     app.model.log.length() == 1 && app.model.log.get(0) == 3,
     "a stop ends the bubbling",
+  )
+
+  app.send(NestMessage.Capture { mode: 1 })
+  run drain(&mut app, &mut tree)
+  app.model.log.clear()
+  drop run click(&mut app, &mut tree, viewport(), "target")
+  run Testing.expect(
+    app.model.log.length() == 2 && app.model.log.get(0) == 4 && app.model.log.get(1) == 3,
+    "a capture handler answers before the target's own handler",
+  )
+  app.send(NestMessage.Capture { mode: 2 })
+  run drain(&mut app, &mut tree)
+  app.model.log.clear()
+  drop run click(&mut app, &mut tree, viewport(), "target")
+  drop run click(&mut app, &mut tree, viewport(), "sibling")
+  run Testing.expect(
+    app.model.log.length() == 2 && app.model.log.get(0) == 4 && app.model.log.get(1) == 4,
+    "a capture handler that stops keeps the event from the nodes below and from bubbling",
   )
 }
 
