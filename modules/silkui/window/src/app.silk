@@ -1,6 +1,10 @@
 //! A Loom app in a window: what the host silkui generates for a Loom app runs. The app's
 //! model `P` is a `Program<M, C>`; its commands may ask the window's [`Shell`] for things.
 //!
+//! The commands run on worker threads, so the window stays live while one is slow. A message
+//! and a command own what they hold, and a command that must stay on the UI thread says so
+//! with `onUiThread`.
+//!
 //! ```silk,ignore
 //! import project.app { Model, Message }
 //! import silkui_window_loom.app { Settings, TitleBar, main as loom }
@@ -13,7 +17,8 @@ import loom_window.program { StylesheetCompiler as Compiler, runtimeStylesheets 
 import loom.app { NoCommand }
 import loom.program { Program, CommandSet }
 import loom.shell { Shell }
-import loom_window.program { Launched, Window, StyleAssets, SheetWatch, launch, show, systemFonts, failed }
+import loom_window.program { Launched, Window, StyleAssets, SheetWatch, launch, show, showWithWorkers, systemFonts, failed }
+import silk.concurrency.thread { Transferable }
 pub import loom_window.program { TitleBar }
 import silk.core.effect { Effect }
 import silk.system.filesystem { FileError }
@@ -56,13 +61,13 @@ effect fn opened<P: Program<M, NoCommand>, M>(settings: Settings, platform: Opti
   return run show<P, M, NoCommand, never>(run window(settings, move sheets, move updates, compiler), &fonts, move platform)
 }
 
-effect fn openedWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32
+effect fn openedWithCommands<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32
   ! OutOfMemoryError
   ? &mut Allocator {
   let window = run window(settings, move sheets, move updates, compiler)
   let mut shell = window.shell()
   let fonts = run systemFonts()
-  return run show<P, M, C, &mut Shell | &mut Allocator>(move window, &fonts, move platform)
+  return run showWithWorkers<P, M, C>(move window, &fonts, move platform)
     |> Effect.provideMut<Shell>(&mut shell)
 }
 
@@ -72,7 +77,7 @@ fn app<P: Program<M, NoCommand>, M>(settings: Settings, platform: Option<Launche
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-fn appWithCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32 {
+fn appWithCommands<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings, platform: Option<Launched>, sheets: StyleAssets, updates: SheetWatch, compiler: Compiler) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
   return run Effect.catchAll(openedWithCommands<P, M, C>(settings, move platform, move sheets, move updates, compiler), failed)
     |> Effect.provideMut<Allocator>(&mut allocator)
@@ -105,17 +110,17 @@ effect fn launchSheets<P: Program<M, NoCommand>, M>(settings: Settings, sources:
 }
 
 /// Main for an app whose commands may ask the window's Shell for things.
-pub fn withCommands<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings) -> i32 {
+pub fn withCommands<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(settings: Settings) -> i32 {
   return withCommandsAndSheets<P, M, C>(settings, &[])
 }
 
-pub fn withCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+pub fn withCommandsAndSheets<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(
   settings: Settings, sources: &[&[u8]],
 ) -> i32 {
   return withCommandsAndSheetUpdates<P, M, C>(settings, sources, "")
 }
 
-pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(
   settings: Settings, sources: &[&[u8]], updatePath: string,
 ) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()
@@ -123,7 +128,7 @@ pub fn withCommandsAndSheetUpdates<P: Program<M, C>, M, C: CommandSet<M, &mut Sh
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-effect fn launchCommandsAndSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+effect fn launchCommandsAndSheets<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(
   settings: Settings, sources: &[&[u8]], updatePath: string, compiler: Compiler,
 ) -> i32 ! FileError | OutOfMemoryError ? &mut Allocator {
   let sheets = run StyleAssets.from(sources)
@@ -139,7 +144,7 @@ pub fn mainWithRuntimeSheets<P: Program<M, NoCommand>, M>(settings: Settings, so
     |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
-pub fn withCommandsAndRuntimeSheets<P: Program<M, C>, M, C: CommandSet<M, &mut Shell | &mut Allocator>>(
+pub fn withCommandsAndRuntimeSheets<P: Program<M, C>, M: 'static + Transferable, C: 'static + Transferable + CommandSet<M, &mut Shell | &mut Allocator>>(
   settings: Settings, sources: &[&[u8]], updatePath: string,
 ) -> i32 {
   let mut allocator = Allocator.systemAllocatorProvider()

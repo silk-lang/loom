@@ -32,7 +32,7 @@ static if Intrinsic.targetArchitecture() != "wasm32" {
 }
 
 import loom.app { App, Perform }
-import loom.runtime { Runtime, pump, tick, resize }
+import loom.runtime { Runtime, pump, tick, resize, drain }
 import loom_tree.lib { frame, frameRoot }
 import loom_tree.harness { click, press }
 import ui_tree.legacy { UiTree, TreeError, FrameInput, Mutation }
@@ -153,6 +153,15 @@ pub interface WindowContent<A, M, C> {
 
   fn scene<'s>(self: &'s Self, tree: &'s UiTree<'_>) -> &'s Scene {
     return tree.scene()
+  }
+
+  /// Whether the content runs the waiting commands that may leave the UI thread itself: it
+  /// takes them with `app.takeWorkOn(false)` in `poll` and ends each with `app.finish`. The
+  /// host then performs only the ones that ask for the UI thread. When false, the host
+  /// performs every waiting command on the UI thread, after the frame that shows the update
+  /// that asked for it.
+  fn runsCommands(self: &Self) -> bool {
+    return false
   }
 }
 
@@ -288,6 +297,10 @@ pub effect fn runWindowHostedWithSheetUpdates<
     loader: Loader.make(),
     stylesheets: move stylesheets,
     stylesheetUpdates: move updates,
+    issued: 0,
+    framed: false,
+    due: false,
+    since: -1.0,
   }
   let mut inspector = move inspector
   run inspector.extend(run SilkUi.extension())
@@ -311,7 +324,18 @@ struct AppClient<'a, A, M, C, H> {
   loader: Loader,
   stylesheets: StyleAssets,
   stylesheetUpdates: SheetWatch,
+  /// `Runtime.issued` when the waiting commands were last looked at.
+  issued: u64,
+  /// A frame was drawn since the newest waiting command came.
+  framed: bool,
+  /// The waiting commands may be performed: the frame that shows their update is out.
+  due: bool,
+  /// When the commands that wait began to, or negative while none does.
+  since: f64,
 }
+
+/// How long commands wait for a frame that does not come (a hidden window draws none).
+const FRAME_PATIENCE: f64 = 0.25
 
 impl<'a, A, M, C, H> AppClient<'a, A, M, C, H> {
   /// Starts the loads the last batch asked for; the ones the loader has at hand are installed
@@ -334,6 +358,71 @@ effect fn loadNow<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
   if run loader.serve(&mut tree) {
     drop run pump(&mut state, &mut tree)
   }
+}
+
+impl<'a, A: App<M, C>, M, C, H: WindowContent<A, M, C>> AppClient<'a, A, M, C, H> {
+  /// How many waiting commands are this host's to perform.
+  fn waiting(self: &Self, state: &Runtime<A, M, C>) -> usize {
+    return if WindowContent<A, M, C>.runsCommands(&self.content.*) {
+      state.deferredOn(true)
+    } else {
+      state.deferred()
+    }
+  }
+
+  /// Looks at the waiting commands after anything that may have added one or drawn a frame.
+  fn note(self: &mut Self, state: &Runtime<A, M, C>, tree: &UiTree<'_>) -> () {
+    let issued = state.issued()
+    if issued != self.issued {
+      // The update that asked for the new command is not on screen yet.
+      self.issued = issued
+      self.framed = false
+    }
+    if self.waiting(state) == 0 {
+      self.due = false
+      self.since = -1.0
+      return ()
+    }
+    self.due = self.framed || !WindowContent<A, M, C>.needsFrame(&self.content.*, state, tree)
+  }
+}
+
+/// Performs the commands that waited for their frame, on the UI thread, then handles their
+/// messages. The commands those updates ask for wait for the next frame in turn.
+effect fn work<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R>(
+  client: &mut AppClient<'a, A, M, C, H>,
+  state: &mut Runtime<A, M, C>,
+  tree: &mut UiTree<'_>,
+  time: f64,
+) -> ()
+  ! E | TreeError | OutOfMemoryError
+  ? R | &mut Allocator {
+  client.note(&state.*, &tree.*)
+  let mut left = client.waiting(&state.*)
+  if left == 0 {
+    return ()
+  }
+  if client.since < 0.0 {
+    client.since = time
+  }
+  if !client.due && time - client.since < FRAME_PATIENCE {
+    return ()
+  }
+  let all = !WindowContent<A, M, C>.runsCommands(&client.content.*)
+  while left != 0 {
+    let held = if all {
+      run state.takeWork()
+    } else {
+      run state.takeWorkOn(true)
+    }
+    let message = run Perform<M, E, R>.perform(move held.command)
+    drop state.finish(held.ticket, move message)
+    left = left - 1
+  }
+  client.since = -1.0
+  run drain(&mut state, &mut tree)
+  run loadNow(&mut client.loader, &mut state, &mut tree)
+  client.note(&state.*, &tree.*)
 }
 
 impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R> WindowClient<
@@ -433,7 +522,15 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   }
 
   fn wakeAfter(self: &Self, state: &Runtime<A, M, C>) -> Option<f64> {
-    let wanted = self.loader.watchAfter(self.stylesheetUpdates.wakeAfter(WindowContent<A, M, C>.wakeAfter(&self.content.*)))
+    let mut wanted = self.loader.watchAfter(self.stylesheetUpdates.wakeAfter(WindowContent<A, M, C>.wakeAfter(&self.content.*)))
+    if self.waiting(state) != 0 {
+      // Commands wait for their frame: at once when it is out, soon when none comes.
+      let soon = if self.due { 0.0 } else { FRAME_PATIENCE }
+      wanted = match wanted {
+        Option<f64>.Some { value } => Option<f64>.some(f64.min(value, soon))
+        Option<f64>.None => Option<f64>.some(soon)
+      }
+    }
     if !self.loader.pending() {
       return wanted
     }
@@ -453,13 +550,18 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! TreeError | AtlasError | GeometryError | OutOfMemoryError
     ? &mut Allocator {
-    return run WindowContent<A, M, C>.frame(
+    run WindowContent<A, M, C>.frame(
       &mut self.content.*,
       &state.*,
       &mut tree,
       input,
       inspector,
     )
+    self.note(&state.*, &tree.*)
+    if self.waiting(&state.*) != 0 {
+      self.framed = true
+      self.due = true
+    }
   }
 
   fn scene<'s>(self: &'s Self, state: &'s Runtime<A, M, C>, tree: &'s UiTree<'_>) -> &'s Scene {
@@ -488,6 +590,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
     run WindowContent<A, M, C>.intercept(&mut self.content.*, &mut state, &mut tree)
     drop run pump(&mut state, &mut tree)
     run loadNow(&mut self.loader, &mut state, &mut tree)
+    self.note(&state.*, &tree.*)
   }
 
   effect fn decide(self: &mut Self, state: &mut Runtime<A, M, C>, tree: &mut UiTree<'_>) -> bool
@@ -496,6 +599,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
     run WindowContent<A, M, C>.intercept(&mut self.content.*, &mut state, &mut tree)
     drop run pump(&mut state, &mut tree)
     run loadNow(&mut self.loader, &mut state, &mut tree)
+    self.note(&state.*, &tree.*)
     return state.takePrevented()
   }
 
@@ -510,6 +614,12 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
     ? R | &mut Allocator {
     run tick(&mut state, &mut tree, time, animation)
     run loadNow(&mut self.loader, &mut state, &mut tree)
+    if animation {
+      self.note(&state.*, &tree.*)
+    } else {
+      // The loop's own tick comes once a turn, after the frame of the turn before.
+      run work<A, M, C, H, E, R>(&mut self, &mut state, &mut tree, time)
+    }
   }
 
   effect fn resize(

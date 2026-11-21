@@ -383,7 +383,8 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
   }
 
   /// From now on, `drain` keeps the commands `update` returns instead of performing them, for
-  /// the host loop to run on fibers (see `fibers`). Their messages come back through `send`.
+  /// the host to run after the frame that shows the update, on the UI thread or off it. The
+  /// host takes them with `takeWork` and gives each message back with `finish`.
   pub fn deferCommands(self: &mut Self) -> () {
     self.deferring = true
   }
@@ -445,6 +446,12 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       Working { ticket: held.ticket, owner: held.owner, slot: held.slot, cancelled: false },
     )
     return move held
+  }
+
+  /// How many commands were ever held: it grows by one for each, so a host that remembers it
+  /// sees when a new one came.
+  pub fn issued(self: &Self) -> u64 {
+    return self.nextTicket
   }
 
   /// How many commands hosts took with `takeWork` and have not finished.
