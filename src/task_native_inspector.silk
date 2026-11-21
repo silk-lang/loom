@@ -457,6 +457,22 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
       !String.contains(list, "testId=\"title\"") && String.contains(list, "testId=\"feed\""),
       "navigation: the back key pops the article",
     )
+
+    // The heavy article keeps the UI thread busy for 1.2 seconds as it opens.
+    let down = run command(cli, &app.socket, &["scroll", "--test-id", "feed", "--dy", "3000"], env)
+    run expect(down.code == 0, "navigation: scroll to the end of the feed")
+    run waitMilliseconds(1200)
+    let heavy = run command(
+      cli,
+      &app.socket,
+      &["click", "--role", "button", "--name", "Article 31", "--exact"],
+      env,
+    )
+    run expect(heavy.code == 0, "navigation: open the article that stalls the window")
+    run waitMilliseconds(3500)
+    let opened = run command(cli, &app.socket, &["snapshot"], env)
+    let settled = run utf8(Bytes.asSlice(&opened.output))
+    run expect(String.contains(settled, "testId=\"title\""), "navigation: it opened")
   }
 
   pub effect fn navigation() -> ()

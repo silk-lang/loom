@@ -2,7 +2,7 @@
 name = "ui-ghostty-demo"
 description = "A simple terminal app: a shell on a PTY, drawn by ui-ghostty in a native window"
 version = "0.1.0"
-silk-version = "0.1.0-dev.90+43166993a300"
+silk-version = "0.1.0-dev.94+93906b8028e6"
 kind = "executable"
 
 [dependencies]

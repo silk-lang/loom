@@ -558,7 +558,13 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
       inspector,
     )
     self.note(&state.*, &tree.*)
-    if self.waiting(&state.*) != 0 {
+  }
+
+  fn shown(self: &mut Self, state: &Runtime<A, M, C>) -> () {
+    // The commands that waited for this frame may run: what asked for them is on its way
+    // to the screen. A frame only the inspector read does not get here.
+    self.issued = state.issued()
+    if self.waiting(state) != 0 {
       self.framed = true
       self.due = true
     }
