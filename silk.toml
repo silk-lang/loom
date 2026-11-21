@@ -17,6 +17,8 @@ members = [
   "modules/loom/tree",
   "modules/loom/window",
   "modules/loom/window/tests",
+  "modules/loom-navigation",
+  "modules/loom-navigation/tests",
   "modules/loom-components",
   "modules/loom-components/demo",
   "modules/loom-components/gallery",
