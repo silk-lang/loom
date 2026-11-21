@@ -740,9 +740,10 @@ fn frame<T>(h: &Document<T>, place: Place, how: Presentation, inert: bool) -> At
     Place.Top { fresh, shifted } => if fresh { away } else if shifted { "-25% 0" } else { "0 0" }
     _ => offset
   }
-  let shown = match place {
-    Place.Hidden => Keyword.None
-    _ => Keyword.Flex
+  // A covered screen keeps its layout, and so its scroll offsets: it is only not painted.
+  let seen = match place {
+    Place.Hidden => false
+    _ => true
   }
   return h.attrs(
     &[
@@ -750,7 +751,8 @@ fn frame<T>(h: &Document<T>, place: Place, how: Presentation, inert: bool) -> At
         &[
           css.position(Position.Absolute),
           css.inset(px(0.0)),
-          css.display(shown),
+          css.display(Keyword.Flex),
+          css.visible(seen),
           css.flexDirection(FlexDirection.Column),
           css.justifyContent(if sheet { Align.End } else { Align.Stretch }),
           css.raw(Property.Translate, offset),
@@ -782,9 +784,9 @@ fn screenNode<M>(
     Place.Gone => true
     _ => false
   }
-  let shown = match place {
-    Place.Hidden => Keyword.None
-    _ => Keyword.Flex
+  let seen = match place {
+    Place.Hidden => false
+    _ => true
   }
 
   // A sheet's backdrop stays put and fades; the sheet itself moves.
@@ -794,7 +796,8 @@ fn screenNode<M>(
         &[
           css.position(Position.Absolute),
           css.inset(px(0.0)),
-          css.display(shown),
+          css.display(Keyword.Flex),
+          css.visible(seen),
           css.flexDirection(FlexDirection.Column),
         ],
       ),

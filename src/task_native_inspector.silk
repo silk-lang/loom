@@ -295,6 +295,145 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     }
   }
 
+  /// How many times `needle` is in `text`.
+  fn occurrences(text: string, needle: string) -> usize {
+    let bytes = String.utf8Bytes(text)
+    let wanted = String.utf8Bytes(needle)
+    let mut count: usize = 0
+    let mut at: usize = 0
+    while at + wanted.length <= bytes.length {
+      let mut same = true
+      let mut i: usize = 0
+      while i < wanted.length {
+        if bytes[at + i] != wanted[i] {
+          same = false
+          break
+        }
+        i = i + 1
+      }
+      if same {
+        count = count + 1
+        at = at + wanted.length
+      } else {
+        at = at + 1
+      }
+    }
+    return count
+  }
+
+  /// The reader on a stack of screens, in a real window: a click shows the next screen before
+  /// its two second loader ran, back works while it loads and drops the load, and the feed
+  /// keeps its scroll under the article.
+  effect fn navigationWith(binary: string, cli: string, display: &Display) -> ()
+    ! TaskError | FileError | HostInputError | OutOfMemoryError | WriterError
+    ? &mut HostInput | &mut Allocator | &mut FileSystem {
+    let environment = run views(&display.environment)
+    let env = environment.asSlice()
+    let app = run program("navigation", binary, &[], env, cli)
+    let feed = run command(cli, &app.socket, &["wait", "--role", "button", "--name", "Article 12", "--timeout", "10000"], env)
+    run expect(feed.code == 0, "navigation: the feed loads on a worker")
+    let scrolled = run command(cli, &app.socket, &["scroll", "--test-id", "feed", "--dy", "400"], env)
+    run expect(scrolled.code == 0, "navigation: the feed scrolls")
+
+    // The click's own reply comes after the update and its render, and before the loader.
+    let began = milliseconds()
+    let open = run command(
+      cli,
+      &app.socket,
+      &["click", "--role", "button", "--name", "Article 12", "--exact"],
+      env,
+    )
+    run expect(open.code == 0, "navigation: click an article")
+    let shell = run command(cli, &app.socket, &["snapshot"], env)
+    let took = milliseconds() - began
+    let shown = run utf8(Bytes.asSlice(&shell.output))
+    run expect(
+      String.contains(shown, "Loading the article") && !String.contains(shown, "testId=\"title\""),
+      "navigation: the article's shell shows before its loader ran",
+    )
+    run expect(took < 1000, "navigation: and long before the two seconds the loader takes")
+
+    // Back while it loads, once the screen slid in and its button can be reached.
+    run waitMilliseconds(500)
+    let back = run command(cli, &app.socket, &["click", "--test-id", "back"], env)
+    run expect(back.code == 0, "navigation: back answers while the article loads")
+    run waitMilliseconds(2600)
+    let after = run command(cli, &app.socket, &["snapshot"], env)
+    let feedAgain = run utf8(Bytes.asSlice(&after.output))
+    run expect(
+      !String.contains(feedAgain, "Loading the article") && !String.contains(feedAgain, "testId=\"title\""),
+      "navigation: the article left",
+    )
+    run expect(String.contains(feedAgain, "scroll=0,400"), "navigation: the feed kept its scroll")
+    let steps = run command(cli, &app.socket, &["silk-ui.messages", "--since", "0"], env)
+    let journal = run utf8(Bytes.asSlice(&steps.output))
+    run expect(
+      occurrences(journal, "message: Loaded") == 1,
+      "navigation: the load of the screen that left was dropped",
+    )
+
+    // An article that loads, and a sheet over it.
+    let again = run command(
+      cli,
+      &app.socket,
+      &["click", "--role", "button", "--name", "Article 12", "--exact"],
+      env,
+    )
+    run expect(again.code == 0, "navigation: open the article again")
+    let loaded = run command(cli, &app.socket, &["wait", "--test-id", "title", "--timeout", "10000"], env)
+    run expect(loaded.code == 0, "navigation: the article loads")
+    let share = run command(cli, &app.socket, &["click", "--test-id", "share"], env)
+    run expect(share.code == 0, "navigation: open the share sheet")
+    run waitMilliseconds(600)
+    let sheet = run command(cli, &app.socket, &["snapshot"], env)
+    let over = run utf8(Bytes.asSlice(&sheet.output))
+    run expect(
+      String.contains(over, "Copy the link") && String.contains(over, "testId=\"title\""),
+      "navigation: the article stays under the sheet",
+    )
+    let shot = run rootPath(".cache/ui-inspect/navigation.png")
+    let image = run command(cli, &app.socket, &["screenshot", pathText(&shot)], env)
+    run expect(image.code == 0, "navigation: the sheet's screenshot")
+    run picture(&shot)
+    let copy = run command(cli, &app.socket, &["click", "--test-id", "copy"], env)
+    run expect(copy.code == 0, "navigation: a command on a worker asks the shell")
+    let copied = run command(cli, &app.socket, &["wait", "--text", "Link copied", "--timeout", "10000"], env)
+    run expect(copied.code == 0, "navigation: and the window does it")
+    let done = run command(cli, &app.socket, &["click", "--test-id", "done"], env)
+    run expect(done.code == 0, "navigation: close the sheet")
+    run waitMilliseconds(600)
+    let closed = run command(cli, &app.socket, &["snapshot"], env)
+    let under = run utf8(Bytes.asSlice(&closed.output))
+    run expect(
+      !String.contains(under, "Copy the link") && String.contains(under, "testId=\"title\""),
+      "navigation: the sheet left and the article is on top",
+    )
+  }
+
+  pub effect fn navigation() -> ()
+    ! BuildError
+      | TaskError
+      | ProcessError
+      | FileError
+      | HostInputError
+      | OutOfMemoryError
+      | WriterError
+    ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
+    let binary = run build("modules/loom-navigation/demo", false, false)
+    let cli = run silkuiPackage("modules/inspect/cli")
+    let display = run openDisplay("x11")
+    let result = run Effect.result(navigationWith(String.view(&binary), String.view(&cli), &display))
+    run closeDisplay(move display)
+    if let Result<
+      (),
+      TaskError | FileError | HostInputError | OutOfMemoryError | WriterError
+    >.Failure {
+      error
+    } = move result {
+      fail move error
+    }
+  }
+
   pub effect fn embedded() -> ()
     ! BuildError
       | TaskError

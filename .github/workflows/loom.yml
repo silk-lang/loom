@@ -50,6 +50,8 @@ jobs:
         run: |
           silk task native devtools check
           silk task native devtools embedded
+      - name: Stack navigation
+        run: silk task native navigation
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,6 +74,8 @@ jobs:
         run: |
           silk task native devtools check
           silk task native devtools embedded
+      - name: Stack navigation
+        run: silk task native navigation
       - name: Terminal wrapper, PTY and demo
         run: |
           python3 modules/ghostty/vt/scripts/prepare

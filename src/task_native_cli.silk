@@ -27,6 +27,7 @@ pub union Tasks {
   },
   HttpTest { pub compiler: String, pub clang: String },
   HttpFixture,
+  Navigation,
 }
 
 impl CommandLine for Tasks {
@@ -37,6 +38,7 @@ impl CommandLine for Tasks {
       |> Command.variant("Devtools", "Run todo/check/external/embedded inspector devtools")
       |> Command.variant("HttpTest", "Run HTTP image tests with an owned fixture server")
       |> Command.variant("HttpFixture", "Serve the loopback image fixture")
+      |> Command.variant("Navigation", "Drive the stack navigation demo in a window")
       |> Command.option("backend", Opt.about("Window backend") |> Opt.default("all"))
       |> Command.arg("package", Opt.about("Package directory") |> Opt.required)
       |> Command.arg("arguments", Opt.about("Arguments forwarded to the demo"))
@@ -82,6 +84,7 @@ impl TaskSet for Tasks {
           String.view(&clang),
         )
         Tasks.HttpFixture => run Native.httpFixture()
+        Tasks.Navigation => run Native.navigation()
       }
     }
   }

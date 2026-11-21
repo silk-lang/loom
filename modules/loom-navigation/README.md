@@ -1,0 +1,57 @@
+# Loom Navigation
+
+A stack of screens for Loom apps: push, pop, back, sheets and transitions, as a native
+navigation controller or React Navigation's stack.
+
+```silk
+import loom_navigation.lib { Stack, Screen, Action, Presentation, Message, Owned, Out, header }
+```
+
+## Screens
+
+A screen is a model that implements `Screen<M, C>`: `start` (its loader), `update`, `view` and
+`subscriptions`, like a `Submodel`. Its `update` moves the stack by reporting an `Action`:
+
+```silk
+PageMessage.Opened { id } => Step.of(move model).reporting(
+  Action<Page>.Push { screen: Page.Article { id: id, loaded: false } },
+)
+PageMessage.Closed => Step.of(move model).reporting(Action<Page>.Pop)
+```
+
+`Push`, `Pop`, `PopTo { key }`, `PopToRoot`, `Replace` and `Reset` are the actions. Optional
+methods say how a screen presents (`Push`, `Modal`, `Sheet`, `Instant`), what back does inside
+it (`back`: unsaved changes to ask about, a stack of its own), and give it a message when it
+is covered or shows again.
+
+A screen's root should fill its frame (`flex-grow: 1`) and paint a background: screens lie
+over each other while they move.
+
+## The stack
+
+`Stack<S>` is a value in the app's model and a `Submodel<Message<M>, Owned<C>, Out>`, so the
+parent holds it like any child: `Submodel.start`, `fold`, `h.submodel`, `subs.submodel`.
+
+```silk
+let stack = run Stack<Page>.of(1, Page.Feed { loaded: false }, Presentation.Push)
+let commands = run Submodel<Msg, Cmd, Out>.start(&stack)
+```
+
+- Every screen on the stack stays live until it leaves: model, nodes (scroll, focus),
+  subscriptions and commands. A fully covered screen is not painted and its view is not
+  rebuilt until it shows again. The screen under a sheet stays visible, out of reach.
+- A screen's commands run as `Owned<C>` under the screen's key. When the screen leaves, the
+  ones that wait are dropped and the message of one that runs is discarded.
+- `Message.Back` goes back: the top screen's own `back` first, else a pop. On the first screen
+  the stack reports `Out.Exit` to its parent. Alt+Left, Cmd+[ or Ctrl+[ and the mouse's back
+  button send it from where the focus or the pointer is, so each of two stacks side by side
+  answers for itself. Escape closes a sheet or a modal; `withEscape` makes it go back from
+  any screen.
+- `withoutMotion` turns the transitions off.
+
+## Slow work
+
+Run the app with `loom_window.program.showWithWorkers` (the `withCommands` front door of
+`silkui-window-loom` does): commands run on worker threads, so a click shows the next screen's
+loading shell at once and the window stays live while the loader runs. `demo` is a reader
+that shows it, and `silk task native navigation` drives it in a window.
