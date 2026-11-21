@@ -18,6 +18,7 @@ import showing as _showing
 import keeping as _keeping
 import windows as _windows
 import aria as _aria
+import cancelling as _cancelling
 import loom_examples.counter { Counter, Message as CounterMessage }
 import loom_examples.todo { Todo, Message as TodoMessage, Command as TodoCommand, Store }
 import loom_examples.look { SANS }

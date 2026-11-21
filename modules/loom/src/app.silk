@@ -57,6 +57,24 @@ pub interface App<M, C> {
 /// move what it carries (a `String`, a buffer) into the work.
 pub interface Perform<M, E, ? R> {
   effect fn perform(self: Self) -> M ! E ? R
+
+  /// Who the work belongs to, or 0 for nobody. `cx.cancel(owner)` stops what an owner still
+  /// has waiting or running: its message never reaches `update`.
+  fn owner(self: &Self) -> u64 {
+    return 0
+  }
+
+  /// A name for the work among its owner's, or 0 for none. Starting a command cancels an
+  /// earlier one of the same owner and slot (a search as the user types, a refresh).
+  fn slot(self: &Self) -> u64 {
+    return 0
+  }
+
+  /// Whether a host that runs commands off the UI thread must keep this one on it, because
+  /// it needs something that lives there. It still runs after the frame that shows the update.
+  fn onUiThread(self: &Self) -> bool {
+    return false
+  }
 }
 
 /// The command type of an app without commands.
@@ -74,6 +92,8 @@ pub struct Context<C> {
   pub commands: List<C>,
   /// Where this update moves the location to, if anywhere.
   pub destination: Option<String>,
+  /// The owners whose commands this update cancels (see `cancel`).
+  pub cancels: List<u64>,
 }
 
 impl<C> Context<C> {
@@ -82,7 +102,15 @@ impl<C> Context<C> {
       heap: Heap.make(),
       commands: List<C>.make(),
       destination: Option<String>.none(),
+      cancels: List<u64>.make(),
     }
+  }
+
+  /// Cancels the commands of `owner` (see `Perform.owner`) that wait or still run: a host that
+  /// runs commands apart from the update drops their messages. Commands this same update
+  /// adds are not affected.
+  pub fn cancel(self: &mut Self, owner: u64) -> () {
+    self.heap.alloc(self.cancels.append(owner))
   }
 
   /// Moves the location to `path` after this update, as a click on a link to it does.

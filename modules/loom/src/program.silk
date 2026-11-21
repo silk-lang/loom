@@ -75,6 +75,23 @@ pub interface Receives<I, C, O> {
 /// swappable in tests. A command that can fail says so in its message.
 pub interface CommandSet<M, ? R> {
   effect fn execute(self: Self) -> M ! OutOfMemoryError ? R
+
+  /// Who the command belongs to, or 0 for nobody (see `Perform.owner`): an update that
+  /// returns `cancelling(owner)` stops it.
+  fn owner(self: &Self) -> u64 {
+    return 0
+  }
+
+  /// A name for the command among its owner's, or 0 (see `Perform.slot`): a newer command
+  /// in the same slot replaces it.
+  fn slot(self: &Self) -> u64 {
+    return 0
+  }
+
+  /// Whether the command must run on the UI thread (see `Perform.onUiThread`).
+  fn onUiThread(self: &Self) -> bool {
+    return false
+  }
 }
 
 impl<M> CommandSet<M ? never> for NoCommand {
@@ -94,6 +111,8 @@ pub struct Update<Model, C, O> {
   pub out: Option<O>,
   /// Where the update moves the location to, if anywhere (see `navigating`).
   pub destination: Option<String>,
+  /// The owners whose commands the update cancels (see `cancelling`).
+  pub cancels: List<u64>,
 }
 
 impl<Model, C, O> Update<Model, C, O> {
@@ -104,6 +123,7 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: List<C>.make(),
       out: Option<O>.none(),
       destination: Option<String>.none(),
+      cancels: List<u64>.make(),
     }
   }
 
@@ -118,6 +138,7 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: move commands,
       out: Option<O>.none(),
       destination: Option<String>.none(),
+      cancels: List<u64>.make(),
     }
   }
 
@@ -128,6 +149,7 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: move commands,
       out: Option<O>.none(),
       destination: Option<String>.none(),
+      cancels: List<u64>.make(),
     }
   }
 
@@ -138,6 +160,7 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: move self.commands,
       out: Option<O>.some(move out),
       destination: move self.destination,
+      cancels: move self.cancels,
     }
   }
 
@@ -151,6 +174,7 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: move self.commands,
       out: move self.out,
       destination: Option<String>.some(run String.copy(path)),
+      cancels: move self.cancels,
     }
   }
 
@@ -164,7 +188,27 @@ impl<Model, C, O> Update<Model, C, O> {
       commands: move self.commands,
       out: move self.out,
       destination: move destination,
+      cancels: move self.cancels,
     }
+  }
+
+  /// The same update, cancelling the commands of `owner` that wait or still run (see
+  /// `CommandSet.owner`). A parent passes a child's on with `dropping`.
+  pub effect fn cancelling(self: Self, owner: u64) -> Update<Model, C, O>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut next = move self
+    run next.cancels.append(owner)
+    return move next
+  }
+
+  /// The same update, cancelling what a child's update cancelled (`Folded.cancels`).
+  pub effect fn dropping(self: Self, cancels: List<u64>) -> Update<Model, C, O>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut next = move self
+    run next.cancels.appendSlice(cancels.asSlice())
+    return move next
   }
 }
 
@@ -173,6 +217,7 @@ pub struct Folded<C, O> {
   pub commands: List<C>,
   pub out: Option<O>,
   pub destination: Option<String>,
+  pub cancels: List<u64>,
 }
 
 /// Runs a child's `update` on the child where it lies, in its parent's model.
@@ -189,6 +234,7 @@ pub effect fn fold<Child: Submodel<M, C, O>, M, C, O>(child: &mut Child, message
     commands: move next.commands,
     out: move next.out,
     destination: move next.destination,
+    cancels: move next.cancels,
   }
 }
 
@@ -207,6 +253,7 @@ pub effect fn foldInput<Child: Receives<I, C, O>, I, C, O>(child: &mut Child, in
     commands: move next.commands,
     out: move next.out,
     destination: move next.destination,
+    cancels: move next.cancels,
   }
 }
 
@@ -238,6 +285,18 @@ impl<M, C: CommandSet<M, R>, ? R> Perform<M, OutOfMemoryError ? R> for Run<C> {
     ? R {
     return run CommandSet.execute(move self.command)
   }
+
+  fn owner(self: &Self) -> u64 {
+    return CommandSet<M, R>.owner(&self.command)
+  }
+
+  fn slot(self: &Self) -> u64 {
+    return CommandSet<M, R>.slot(&self.command)
+  }
+
+  fn onUiThread(self: &Self) -> bool {
+    return CommandSet<M, R>.onUiThread(&self.command)
+  }
 }
 
 impl<P: Program<M, C>, M, C> App<M, Run<C>> for Hosted<P> {
@@ -254,6 +313,12 @@ impl<P: Program<M, C>, M, C> App<M, Run<C>> for Hosted<P> {
     unsafe Pointer.put(place, move next.model)
     if let Option<String>.Some { value: path } = move next.destination {
       cx.navigate(String.view(&path))
+    }
+    let cancels = next.cancels.asSlice()
+    let mut c: usize = 0
+    while c < cancels.length {
+      cx.cancel(cancels[c])
+      c = c + 1
     }
     let mut commands = move next.commands
     while commands.length() > 0 {
