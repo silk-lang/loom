@@ -51,6 +51,9 @@ let commands = run Submodel<Msg, Cmd, Out>.start(&stack)
   it closes a sheet or a modal, and `withEscape` makes it go back from any screen. A screen
   that wants a say first handles the request below the stack and stops it, or the app takes
   it above the stack with `h.onCapture`.
+- A screen slides with a `translate` transition, which a Silk UI window's render thread runs
+  by itself: the slide goes on while the UI thread is busy with the screen that opens. The
+  demo's last article holds the UI thread for 1.2 seconds to show it.
 - `withoutMotion` turns the transitions off.
 
 ## Links

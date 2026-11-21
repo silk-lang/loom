@@ -6,6 +6,9 @@
 //! two seconds). A click still shows the next screen at once, with its loading shell; back
 //! works while it loads, and the load is then dropped. The feed keeps its scroll position
 //! under the article.
+//!
+//! Article 31, the last in the feed, also keeps the UI thread busy for 1.2 seconds as it
+//! opens. The slide still runs: the render thread moves the screen by itself.
 import loom_navigation.lib { Stack, Screen, Action, Presentation, Message, Owned, Out, header }
 import loom.lib {
   CommandSet,
@@ -45,6 +48,7 @@ union PageMessage {
   Shared { id: i64 },
   Copied,
   CopiedLink,
+  Stalled,
   Closed,
 }
 
@@ -52,7 +56,12 @@ union PageCommand {
   /// Waits `milliseconds`, as a slow disk or network would.
   Load { milliseconds: u64 },
   CopyLink { id: i64 },
+  /// Keeps the UI thread busy for `milliseconds`, as a view too slow to build would.
+  Stall { milliseconds: u64 },
 }
+
+/// The article that stalls the window as it opens.
+const HEAVY: i64 = 31
 
 impl CommandSet<PageMessage ? &mut Shell | &mut Allocator> for PageCommand {
   effect fn execute(self: Self) -> PageMessage
@@ -69,6 +78,18 @@ impl CommandSet<PageMessage ? &mut Shell | &mut Allocator> for PageCommand {
         run Shell.copy("https://example.com/article")
         return PageMessage.CopiedLink
       }
+      PageCommand.Stall { milliseconds } => {
+        let parker = run Parker.make()
+        drop parker.parkTimeout(milliseconds * 1000000)
+        return PageMessage.Stalled
+      }
+    }
+  }
+
+  fn onUiThread(self: &Self) -> bool {
+    return match &self.* {
+      PageCommand.Stall { .. } => true
+      _ => false
     }
   }
 }
@@ -202,7 +223,12 @@ impl Screen<PageMessage, PageCommand> for Page {
     let mut commands = List<PageCommand>.make()
     match &model.* {
       Page.Feed { loaded: _ } => run commands.append(PageCommand.Load { milliseconds: 400 })
-      Page.Article { id: _, loaded: _ } => run commands.append(PageCommand.Load { milliseconds: 2000 })
+      Page.Article { id, loaded: _ } => {
+        run commands.append(PageCommand.Load { milliseconds: 2000 })
+        if id == HEAVY {
+          run commands.append(PageCommand.Stall { milliseconds: 1200 })
+        }
+      }
       Page.Share { id: _, copied: _ } => {}
     }
     return move commands
@@ -244,6 +270,7 @@ impl Screen<PageMessage, PageCommand> for Page {
           Page other => Step.of(move other)
         }
       }
+      PageMessage.Stalled => { return Step.of(move model) }
       PageMessage.Closed => { return Step.of(move model).reporting(Action<Page>.Pop) }
     }
   }
@@ -254,9 +281,9 @@ impl Screen<PageMessage, PageCommand> for Page {
         if !loaded {
           return page(h, &[header<PageMessage>(h, "Feed", Option<PageMessage>.none()), loading(h, "Loading the feed")])
         }
-        let ids: [i64; 30] = [
+        let ids: [i64; 31] = [
           1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-          25, 26, 27, 28, 29, 30,
+          25, 26, 27, 28, 29, 30, 31,
         ]
         return page(
           h,
