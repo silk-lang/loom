@@ -130,6 +130,19 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     }
     run Inspector.devtools("check", "", "", &[], false, true)
     run Inspector.embedded()
+    run Inspector.navigation()
+  }
+
+  pub effect fn navigation() -> ()
+    ! BuildError
+      | TaskError
+      | ProcessError
+      | FileError
+      | HostInputError
+      | OutOfMemoryError
+      | WriterError
+    ? &mut HostInput | &mut Allocator | &mut ChildProcess | &mut FileSystem {
+    run Inspector.navigation()
   }
 
   pub effect fn devtools(

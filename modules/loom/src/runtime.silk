@@ -97,6 +97,27 @@ struct OpenWindow<M> {
   seen: bool,
 }
 
+/// A command that waits for a host to run it (see `Runtime.deferCommands`), with what
+/// `Perform` says of it. Hand its message to `Runtime.finish` under `ticket`.
+pub struct Held<C> {
+  pub ticket: u64,
+  pub owner: u64,
+  pub slot: u64,
+  /// It must run on the UI thread (`Perform.onUiThread`).
+  pub ui: bool,
+  pub command: C,
+}
+
+/// A command a host took with `takeWork` and has not finished.
+struct Working {
+  ticket: u64,
+  owner: u64,
+  slot: u64,
+  cancelled: bool,
+}
+
+impl Copy for Working {}
+
 /// Runs app model `A` with messages `M` and commands `C`. See the module documentation.
 pub struct Runtime<A, M, C> {
   pub model: A,
@@ -123,7 +144,9 @@ pub struct Runtime<A, M, C> {
   height: f32,
   started: bool,
   deferring: bool,
-  held: List<C>,
+  held: List<Held<C>>,
+  working: List<Working>,
+  nextTicket: u64,
   /// What the program did, once a host asks (`record`).
   pub journal: Journal,
   /// The windows the model declares besides the first, and the ones open, oldest first.
@@ -173,7 +196,9 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       height: 0.0,
       started: false,
       deferring: false,
-      held: List<C>.make(),
+      held: List<Held<C>>.make(),
+      working: List<Working>.make(),
+      nextTicket: 1,
       journal: Journal.make(),
       windows: Windows<M>.make(),
       opened: List<OpenWindow<M>>.make(),
@@ -358,19 +383,147 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
   }
 
   /// From now on, `drain` keeps the commands `update` returns instead of performing them, for
-  /// the host loop to run on fibers (see `fibers`). Their messages come back through `send`.
+  /// the host to run after the frame that shows the update, on the UI thread or off it. The
+  /// host takes them with `takeWork` and gives each message back with `finish`.
   pub fn deferCommands(self: &mut Self) -> () {
     self.deferring = true
   }
 
-  /// How many commands wait to be taken with `takeDeferred`.
+  /// How many commands wait to be taken with `takeWork` (or `takeDeferred`).
   pub fn deferred(self: &Self) -> usize {
     return self.held.length()
   }
 
-  /// Takes the oldest command that waits. Call it only while `deferred()` is not 0.
+  /// Takes the oldest command that waits, with nothing kept of it: its message comes back
+  /// through `send`, and cancelling its owner no longer reaches it. Call it only while
+  /// `deferred()` is not 0. Hosts that honour cancellation use `takeWork`.
   pub fn takeDeferred(self: &mut Self) -> C {
-    return self.held.remove(0)
+    let held = self.held.remove(0)
+    return move held.command
+  }
+
+  /// How many waiting commands a host may run off the UI thread (`ui` false) or must run on
+  /// it (`ui` true).
+  pub fn deferredOn(self: &Self, ui: bool) -> usize {
+    let held = self.held.asSlice()
+    let mut count: usize = 0
+    let mut i: usize = 0
+    while i < held.length {
+      if held[i].ui == ui {
+        count = count + 1
+      }
+      i = i + 1
+    }
+    return count
+  }
+
+  /// Takes the oldest waiting command and remembers it as running until `finish` or
+  /// `abandon` names its ticket. Call it only while `deferred()` is not 0.
+  pub effect fn takeWork(self: &mut Self) -> Held<C>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return run self.takeAt(0)
+  }
+
+  /// `takeWork` for the oldest command with this `ui` (see `deferredOn`). Call it only while
+  /// `deferredOn(ui)` is not 0.
+  pub effect fn takeWorkOn(self: &mut Self, ui: bool) -> Held<C>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let held = self.held.asSlice()
+    let mut i: usize = 0
+    while i + 1 < held.length && held[i].ui != ui {
+      i = i + 1
+    }
+    return run self.takeAt(i)
+  }
+
+  effect fn takeAt(self: &mut Self, index: usize) -> Held<C>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let held = self.held.remove(index)
+    run self.working.append(
+      Working { ticket: held.ticket, owner: held.owner, slot: held.slot, cancelled: false },
+    )
+    return move held
+  }
+
+  /// How many commands were ever held: it grows by one for each, so a host that remembers it
+  /// sees when a new one came.
+  pub fn issued(self: &Self) -> u64 {
+    return self.nextTicket
+  }
+
+  /// How many commands hosts took with `takeWork` and have not finished.
+  pub fn inFlight(self: &Self) -> usize {
+    return self.working.length()
+  }
+
+  /// Whether the running command `ticket` was cancelled: its work can stop early.
+  pub fn cancelled(self: &Self, ticket: u64) -> bool {
+    let working = self.working.asSlice()
+    let mut i: usize = 0
+    while i < working.length {
+      if working[i].ticket == ticket {
+        return working[i].cancelled
+      }
+      i = i + 1
+    }
+    return true
+  }
+
+  /// The running command `ticket` ended with `message`. Queues it for `drain` and returns
+  /// true, or drops it and returns false when the command was cancelled meanwhile.
+  pub fn finish(self: &mut Self, ticket: u64, message: M) -> bool {
+    if self.abandon(ticket) {
+      self.send(move message)
+      return true
+    }
+    drop message
+    return false
+  }
+
+  /// The running command `ticket` ended with no message. Returns whether it was still wanted.
+  pub fn abandon(self: &mut Self, ticket: u64) -> bool {
+    let mut i: usize = 0
+    while i < self.working.length() {
+      let entry = self.working.get(i)
+      if entry.ticket == ticket {
+        drop self.working.remove(i)
+        return !entry.cancelled
+      }
+      i = i + 1
+    }
+    return false
+  }
+
+  /// Cancels the commands of `owner` that wait or run, as `cx.cancel(owner)` does.
+  pub fn cancel(self: &mut Self, owner: u64) -> () {
+    self.cancelWhere(owner, 0, false)
+  }
+
+  /// Drops the waiting commands of `owner` and marks its running ones cancelled; with
+  /// `slotted`, only those in `slot`.
+  fn cancelWhere(self: &mut Self, owner: u64, slot: u64, slotted: bool) -> () {
+    let mut i: usize = 0
+    while i < self.held.length() {
+      let matches = self.held.asSlice()[i].owner == owner
+        && (!slotted || self.held.asSlice()[i].slot == slot)
+      if matches {
+        drop self.held.remove(i)
+      } else {
+        i = i + 1
+      }
+    }
+    let mut w: usize = 0
+    while w < self.working.length() {
+      let mut entry = self.working.get(w)
+      if entry.owner == owner && (!slotted || entry.slot == slot) {
+        entry.cancelled = true
+        self.working.set(w, entry)
+      }
+      w = w + 1
+    }
   }
 
   /// Creates the root box, opens the first root (or the one `placeAt` named) with it, renders the first view into `tree`
@@ -1400,7 +1553,18 @@ pub effect fn settle<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
       let command = runtime.context.commands.remove(0)
       runtime.stats.commands = runtime.stats.commands + 1
       if runtime.deferring {
-        run runtime.held.append(move command)
+        let owner = Perform<M, E, R>.owner(&command)
+        let slot = Perform<M, E, R>.slot(&command)
+        let ui = Perform<M, E, R>.onUiThread(&command)
+        if slot != 0 {
+          // A newer command in a slot replaces what its owner had there.
+          runtime.cancelWhere(owner, slot, true)
+        }
+        let ticket = runtime.nextTicket
+        runtime.nextTicket = ticket + 1
+        run runtime.held.append(
+          Held<C> { ticket: ticket, owner: owner, slot: slot, ui: ui, command: move command },
+        )
       } else if runtime.journal.on {
         let mut cause = run String.copy("command ")
         let shown = run show(&command)
@@ -1454,6 +1618,12 @@ pub effect fn settle<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
     ) {
       runtime.went = true
       run runtime.locate(String.view(&path))
+    }
+
+    // Before this update's own commands are held, so a cancel never reaches them.
+    while runtime.context.cancels.length() != 0 {
+      let owner = runtime.context.cancels.remove(0)
+      runtime.cancelWhere(owner, 0, false)
     }
   }
   runtime.queue.clear()
