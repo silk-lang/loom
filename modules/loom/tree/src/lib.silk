@@ -6,12 +6,15 @@ import loom.runtime { Runtime, pump }
 import ui_protocol.input { Input }
 import ui_tree.engine { UiTree, TreeError }
 import ui_tree.node { FrameInput }
+import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
 
 /// Feeds one input to the tree the way a browser does: the handlers of the input's own record
 /// run first, and the tree's default action (focus, scrolling, what a key does) runs only if
 /// none of them prevented it with `Reply.Prevent`. Hosts call this in place of
-/// `tree.dispatch` followed by `pump`. Returns whether any record was handled.
+/// `tree.dispatch` followed by `pump`. The inputs the tree queues to follow it (the copy of a
+/// shortcut, the close or back request of a key nothing prevented) are fed the same way.
+/// Returns whether any record was handled.
 pub effect fn feed<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
   runtime: &mut Runtime<A, M, C>,
   tree: &mut UiTree<'_>,
@@ -24,7 +27,20 @@ pub effect fn feed<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
   let prevented = runtime.takePrevented()
   run tree.finish(move input, prevented)
   let second = run pump(&mut runtime, &mut tree)
-  return first || second
+  // What `finish` raised (a click, a change) has no default left to prevent: the answer must
+  // not fall on the next input.
+  drop runtime.takePrevented()
+  let mut handled = first || second
+  while let Option<Input>.Some { value: next } = tree.takeFollowUp() {
+    run tree.begin(&next)
+    let before = run pump(&mut runtime, &mut tree)
+    let stopped = runtime.takePrevented()
+    run tree.finish(move next, stopped)
+    let after = run pump(&mut runtime, &mut tree)
+    drop runtime.takePrevented()
+    handled = handled || before || after
+  }
+  return handled
 }
 
 /// Lays out and paints an app, including variable-height list measurements.

@@ -380,6 +380,13 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
       env,
     )
     run expect(again.code == 0, "navigation: open the article again")
+    // The inspector lists the load while it runs, under the screen that owns it.
+    let busy = run command(cli, &app.socket, &["silk-ui.program"], env)
+    let program = run utf8(Bytes.asSlice(&busy.output))
+    run expect(
+      String.contains(program, "\"work\":[\"running ") && String.contains(program, " for 1:"),
+      "navigation: the running load is listed with its screen",
+    )
     let loaded = run command(cli, &app.socket, &["wait", "--test-id", "title", "--timeout", "10000"], env)
     run expect(loaded.code == 0, "navigation: the article loads")
     let share = run command(cli, &app.socket, &["click", "--test-id", "share"], env)
@@ -407,6 +414,48 @@ static if Intrinsic.targetOperatingSystem() == "darwin"
     run expect(
       !String.contains(under, "Copy the link") && String.contains(under, "testId=\"title\""),
       "navigation: the sheet left and the article is on top",
+    )
+
+    // The keyboard: Escape is a close request and closes the sheet only; the back key is a
+    // navigate request and pops the article. Both come from the tree, not from key handlers.
+    let shareAgain = run command(cli, &app.socket, &["click", "--test-id", "share"], env)
+    run expect(shareAgain.code == 0, "navigation: open the sheet again")
+    let reopened = run command(cli, &app.socket, &["wait", "--test-id", "copy", "--timeout", "10000"], env)
+    run expect(reopened.code == 0, "navigation: the sheet is back")
+    run waitMilliseconds(500)
+    let escape = run command(cli, &app.socket, &["press", "Escape"], env)
+    run expect(escape.code == 0, "navigation: press Escape")
+    run waitMilliseconds(600)
+    let afterEscape = run command(cli, &app.socket, &["snapshot"], env)
+    let kept = run utf8(Bytes.asSlice(&afterEscape.output))
+    run expect(
+      !String.contains(kept, "Copy the link") && String.contains(kept, "testId=\"title\""),
+      "navigation: Escape closes the sheet and leaves the article",
+    )
+    // A link pushes the screen its path names: one back then leaves the first article on top.
+    let link = run command(cli, &app.socket, &["click", "--test-id", "related"], env)
+    run expect(link.code == 0, "navigation: click the link to a related article")
+    run waitMilliseconds(1200)
+    let afterPush = run command(cli, &app.socket, &["snapshot"], env)
+    let pushed = run utf8(Bytes.asSlice(&afterPush.output))
+    run expect(String.contains(pushed, "testId=\"loading\""), "navigation: the link pushed an article")
+    let linkBack = run command(cli, &app.socket, &["press", "BrowserBack"], env)
+    run expect(linkBack.code == 0, "navigation: back from the linked article")
+    run waitMilliseconds(1200)
+    let afterLink = run command(cli, &app.socket, &["snapshot"], env)
+    let linked = run utf8(Bytes.asSlice(&afterLink.output))
+    run expect(
+      String.contains(linked, "testId=\"title\"") && !String.contains(linked, "testId=\"loading\""),
+      "navigation: back popped it and left the first article on top",
+    )
+    let key = run command(cli, &app.socket, &["press", "BrowserBack"], env)
+    run expect(key.code == 0, "navigation: press the back key")
+    run waitMilliseconds(1200)
+    let afterBack = run command(cli, &app.socket, &["snapshot"], env)
+    let list = run utf8(Bytes.asSlice(&afterBack.output))
+    run expect(
+      !String.contains(list, "testId=\"title\"") && String.contains(list, "testId=\"feed\""),
+      "navigation: the back key pops the article",
     )
   }
 

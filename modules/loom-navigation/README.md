@@ -43,11 +43,35 @@ let commands = run Submodel<Msg, Cmd, Out>.start(&stack)
 - A screen's commands run as `Owned<C>` under the screen's key. When the screen leaves, the
   ones that wait are dropped and the message of one that runs is discarded.
 - `Message.Back` goes back: the top screen's own `back` first, else a pop. On the first screen
-  the stack reports `Out.Exit` to its parent. Alt+Left, Cmd+[ or Ctrl+[ and the mouse's back
-  button send it from where the focus or the pointer is, so each of two stacks side by side
-  answers for itself. Escape closes a sheet or a modal; `withEscape` makes it go back from
-  any screen.
+  the stack reports `Out.Exit` to its parent. Alt+Left (Cmd+[ on a Mac) and the mouse's back
+  button send it: the tree turns them into a navigate request that starts at the focused node,
+  or the node last pressed, and bubbles (`h.onNavigate`). So each of two stacks side by side
+  answers for itself, a stack inside a screen answers before the one around it, and a stack
+  that cannot go back lets the request go on. Escape is a close request (`h.onCloseRequest`):
+  it closes a sheet or a modal, and `withEscape` makes it go back from any screen. A screen
+  that wants a say first handles the request below the stack and stops it, or the app takes
+  it above the stack with `h.onCapture`.
 - `withoutMotion` turns the transitions off.
+
+## Links
+
+A stack made `withLinks` keeps the location and the stack together. A screen says where it
+lives with `path`, and `open` makes the screen a path names:
+
+```silk
+effect fn path(model: &Page) -> Option<String> { ... }   // "/article/7"; None for a sheet
+effect fn open(path: string) -> Option<Page> { ... }      // "/article/7" is Page.Article
+```
+
+- `h.link("/article/7", ...)` pushes the article. On a document backend it is an `a`, so it
+  opens in a new tab and shows its address like any link.
+- The location follows the top screen that has a path: a push or a pop moves it. A screen
+  with no path (a sheet) leaves it at the screen under it.
+- When the location changes from outside (the browser's back and forward, the address the app
+  starts at), the stack pops to the screen that has that path if one is on the stack, else it
+  pushes the screen `open` makes. A path that opens nothing changes nothing.
+- A pop from inside the app (the header's back button, the back key) adds a history entry for
+  the screen it lands on. It does not rewind the browser's history.
 
 ## Slow work
 
@@ -55,3 +79,7 @@ Run the app with `loom_window.program.showWithWorkers` (the `withCommands` front
 `silkui-window-loom` does): commands run on worker threads, so a click shows the next screen's
 loading shell at once and the window stays live while the loader runs. `demo` is a reader
 that shows it, and `silk task native navigation` drives it in a window.
+
+The inspector's Program panel (and `silk-ui.program`) shows the stack in the model, and under
+`work` the commands that run or wait now, each with the screen it belongs to:
+`running Owned<PageCommand> { ... } for 1:6` is a command of the screen with key 6 on stack 1.

@@ -61,6 +61,8 @@ pub struct ProgramLog {
   pub steps: List<ProgramStep>,
   /// The subscriptions the model asks for, one line each.
   pub subscriptions: List<String>,
+  /// The commands that run or wait now, one line each (`Runtime.workLines`).
+  pub work: List<String>,
   pub stats: ProgramStats,
 }
 
@@ -70,6 +72,7 @@ impl ProgramLog {
       attached: false,
       steps: List<ProgramStep>.make(),
       subscriptions: List<String>.make(),
+      work: List<String>.make(),
       stats: ProgramStats {
         renders: 0,
         dispatches: 0,
@@ -107,6 +110,8 @@ impl ProgramLog {
     }
     run putKey(&mut out, "subscriptions")
     run texts(&self.subscriptions, &mut out)
+    run putKey(&mut out, "work")
+    run texts(&self.work, &mut out)
     run putKey(&mut out, "stats")
     run out.append("{\"renders\":")
     run writeInt(&mut out, self.stats.renders)

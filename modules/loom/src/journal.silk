@@ -129,6 +129,8 @@ pub fn eventName(kind: EventKind) -> string<'static> {
     EventKind.Copy => "copy"
     EventKind.Cut => "cut"
     EventKind.Paste => "paste"
+    EventKind.CloseRequest => "closerequest"
+    EventKind.Navigate => "navigate"
     EventKind.BeforeInput => "beforeinput"
   }
 }

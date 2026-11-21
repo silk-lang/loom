@@ -53,6 +53,7 @@ import ui_protocol.mutation {
   LISTEN_TOUCH,
   LISTEN_CLIPBOARD,
   LISTEN_BEFORE_INPUT,
+  LISTEN_REQUEST,
   LISTEN_LAYOUT,
   LISTEN_POINTER_CANCEL,
   LISTEN_GOT_POINTER_CAPTURE,
@@ -722,6 +723,8 @@ pub struct Kept<M> {
 pub struct Answer<M> {
   pub depth: u32,
   pub reply: Reply<M>,
+  /// The handler is a capture handler (`onCapture`): it answers on the way down.
+  pub capture: bool,
 }
 
 /// The layout box of an anchored node, as the tree laid it out last.
@@ -972,6 +975,8 @@ pub fn listenerFlag(kind: EventKind) -> u32 {
     EventKind.Cut => LISTEN_CLIPBOARD
     EventKind.Paste => LISTEN_CLIPBOARD
     EventKind.BeforeInput => LISTEN_BEFORE_INPUT
+    EventKind.CloseRequest => LISTEN_REQUEST
+    EventKind.Navigate => LISTEN_REQUEST
   }
 }
 
@@ -1236,49 +1241,18 @@ impl<M> Ui<M> {
     let mut walk = Propagation.over(&record)
     let mut step = walk.next()
     while let Option<Step>.Some { value: at } = step {
-      if at.phase != Phase.Capture {
-        let depth = usize.toU32(at.depth)
-        // Handlers of the same node answer in the order they were declared; one that stops
-        // the event also keeps the node's later handlers from answering.
-        let mut stopped = false
-        let mut i: usize = 0
-        while i < self.answers.length() && !stopped {
-          if self.answers.asSlice()[i].depth == depth {
-            let answer = self.answers.remove(i)
-            match move answer.reply {
-              Reply<M>.Emit { message } => {
-                run out.append(move message)
-              }
-              Reply<M>.EmitAndStop { message } => {
-                run out.append(move message)
-                stopped = true
-              }
-              Reply<M>.Stop => {
-                stopped = true
-              }
-              Reply<M>.Pass => {}
-              Reply<M>.Prevent => {
-                walk.preventDefault()
-              }
-              Reply<M>.Custom { message, stopPropagation, preventDefault } => {
-                if let Option<M>.Some { value } = move message {
-                  run out.append(move value)
-                }
-                if preventDefault {
-                  walk.preventDefault()
-                }
-                if stopPropagation {
-                  stopped = true
-                }
-              }
-            }
-          } else {
-            i = i + 1
-          }
-        }
-        if stopped {
-          walk.stopPropagation()
-        }
+      let depth = usize.toU32(at.depth)
+      // Capture handlers answer on the way down and at the target, the others at the target
+      // and on the way up. At the target the capture handlers go first, as in the DOM.
+      let mut stopped = false
+      if at.phase != Phase.Bubble {
+        stopped = run self.answerAt(depth, true, &mut walk, &mut out)
+      }
+      if at.phase != Phase.Capture && !stopped {
+        stopped = run self.answerAt(depth, false, &mut walk, &mut out)
+      }
+      if stopped {
+        walk.stopPropagation()
       }
       step = walk.next()
     }
@@ -1286,6 +1260,58 @@ impl<M> Ui<M> {
       self.prevented = true
     }
     self.answers.clear()
+  }
+
+  /// Takes the answers of the handlers at `depth` that are capture handlers or not, as
+  /// `capture` says, in the order they were declared. Returns whether one stopped the event,
+  /// which also keeps the node's later handlers of that phase from answering.
+  effect fn answerAt(
+    self: &mut Self,
+    depth: u32,
+    capture: bool,
+    walk: &mut Propagation<'_>,
+    out: &mut List<M>,
+  ) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut stopped = false
+    let mut i: usize = 0
+    while i < self.answers.length() && !stopped {
+      let here = self.answers.asSlice()[i].depth == depth && self.answers.asSlice()[i].capture == capture
+      if here {
+        let answer = self.answers.remove(i)
+        match move answer.reply {
+          Reply<M>.Emit { message } => {
+            run out.append(move message)
+          }
+          Reply<M>.EmitAndStop { message } => {
+            run out.append(move message)
+            stopped = true
+          }
+          Reply<M>.Stop => {
+            stopped = true
+          }
+          Reply<M>.Pass => {}
+          Reply<M>.Prevent => {
+            walk.preventDefault()
+          }
+          Reply<M>.Custom { message, stopPropagation, preventDefault } => {
+            if let Option<M>.Some { value } = move message {
+              run out.append(move value)
+            }
+            if preventDefault {
+              walk.preventDefault()
+            }
+            if stopPropagation {
+              stopped = true
+            }
+          }
+        }
+      } else {
+        i = i + 1
+      }
+    }
+    return stopped
   }
 
   // Nodes.
@@ -3052,7 +3078,27 @@ impl<M> Ui<M> {
       return ()
     }
     let reply = handler(&self.event)
-    let answer = Answer<M> { depth: self.depth, reply: move reply }
+    let answer = Answer<M> { depth: self.depth, reply: move reply, capture: false }
+    self.heap.alloc(self.answers.append(move answer))
+  }
+
+  /// Handles records of `kind` on their way down to a node below the open node, before that
+  /// node's own handlers and the bubbling ones (`on`) answer: the capture phase of the DOM.
+  /// A reply that stops the event keeps it from every node below and from bubbling. A record
+  /// that targets the open node itself reaches these handlers first, then its `on` handlers.
+  pub fn onCapture(self: &mut Self, kind: EventKind, handler: fn(&Event) -> Reply<M>) -> () {
+    if !self.dispatching {
+      let entry = self.arena.entryMut(self.current)
+      entry.listeners = u32.bitOr(entry.listeners, listenerFlag(kind))
+      entry.liveKinds = u32.bitOr(entry.liveKinds, listenerFlag(kind))
+
+      return ()
+    }
+    if self.searching || self.event.kind != kind {
+      return ()
+    }
+    let reply = handler(&self.event)
+    let answer = Answer<M> { depth: self.depth, reply: move reply, capture: true }
     self.heap.alloc(self.answers.append(move answer))
   }
 
@@ -3068,7 +3114,7 @@ impl<M> Ui<M> {
       if !bubbles(kind) && u32.toUsize(self.depth) != self.path.length() {
         return ()
       }
-      let answer = Answer<M> { depth: self.depth, reply: move reply }
+      let answer = Answer<M> { depth: self.depth, reply: move reply, capture: false }
       self.heap.alloc(self.answers.append(move answer))
       return ()
     }
@@ -3119,7 +3165,7 @@ impl<M> Ui<M> {
             let item = &mut self.kept.asMutSlice()[low]
             item.taken = true
             let reply = Intrinsic.replace(item.reply, Reply<M>.Pass)
-            let answer = Answer<M> { depth: usize.toU32(depth), reply: move reply }
+            let answer = Answer<M> { depth: usize.toU32(depth), reply: move reply, capture: false }
             self.heap.alloc(self.answers.append(move answer))
           }
           low = low + 1
@@ -3175,7 +3221,7 @@ impl<M> Ui<M> {
     }
     let value = self.heap.alloc(String.copy(String.view(&self.event.value)))
     let message = handler(move value)
-    let answer = Answer<M> { depth: self.depth, reply: Reply<M>.Emit { message: move message } }
+    let answer = Answer<M> { depth: self.depth, reply: Reply<M>.Emit { message: move message }, capture: false }
     self.heap.alloc(self.answers.append(move answer))
   }
 

@@ -118,6 +118,12 @@ struct Working {
 
 impl Copy for Working {}
 
+/// What a running command is, as text, for a host that asked for the journal.
+struct WorkLabel {
+  ticket: u64,
+  text: String,
+}
+
 /// Runs app model `A` with messages `M` and commands `C`. See the module documentation.
 pub struct Runtime<A, M, C> {
   pub model: A,
@@ -146,6 +152,7 @@ pub struct Runtime<A, M, C> {
   deferring: bool,
   held: List<Held<C>>,
   working: List<Working>,
+  labels: List<WorkLabel>,
   nextTicket: u64,
   /// What the program did, once a host asks (`record`).
   pub journal: Journal,
@@ -198,6 +205,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       deferring: false,
       held: List<Held<C>>.make(),
       working: List<Working>.make(),
+      labels: List<WorkLabel>.make(),
       nextTicket: 1,
       journal: Journal.make(),
       windows: Windows<M>.make(),
@@ -325,6 +333,53 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     }
   }
 
+  /// Whether any command waits or runs.
+  pub fn busy(self: &Self) -> bool {
+    return self.held.length() != 0 || self.working.length() != 0
+  }
+
+  /// The commands that run and the ones that wait, one line each, oldest first:
+  /// `running Load for 1:6`, `waiting Save`. The owner is written as its two halves when the
+  /// upper one is set, which is how a child that owns commands for its own children names
+  /// them (a stack and a screen's key); a command of the app itself has no owner written.
+  pub effect fn workLines(self: &Self) -> List<String>
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut lines = List<String>.make()
+    let working = self.working.asSlice()
+    let labels = self.labels.asSlice()
+    let mut i: usize = 0
+    while i < working.length {
+      let mut line = run String.copy(if working[i].cancelled { "cancelled " } else { "running " })
+      let mut named = false
+      let mut l: usize = 0
+      while l < labels.length {
+        if labels[l].ticket == working[i].ticket {
+          run line.append(String.view(&labels[l].text))
+          named = true
+        }
+        l = l + 1
+      }
+      if !named {
+        run line.append("a command")
+      }
+      run ownerText(&mut line, working[i].owner)
+      run lines.append(move line)
+      i = i + 1
+    }
+    let held = self.held.asSlice()
+    let mut j: usize = 0
+    while j < held.length {
+      let mut line = run String.copy("waiting ")
+      let text = run show(&held[j].command)
+      run line.append(String.view(&text))
+      run ownerText(&mut line, held[j].owner)
+      run lines.append(move line)
+      j = j + 1
+    }
+    return move lines
+  }
+
   /// The subscriptions the model asks for now, one line each: `every 1s`, `port menu`.
   pub effect fn subscriptionLines(self: &mut Self) -> List<String>
     ! OutOfMemoryError
@@ -442,6 +497,9 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     ! OutOfMemoryError
     ? &mut Allocator {
     let held = self.held.remove(index)
+    if self.journal.on {
+      run self.labels.append(WorkLabel { ticket: held.ticket, text: run show(&held.command) })
+    }
     run self.working.append(
       Working { ticket: held.ticket, owner: held.owner, slot: held.slot, cancelled: false },
     )
@@ -490,6 +548,14 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       let entry = self.working.get(i)
       if entry.ticket == ticket {
         drop self.working.remove(i)
+        let mut l: usize = 0
+        while l < self.labels.length() {
+          if self.labels.asSlice()[l].ticket == ticket {
+            drop self.labels.remove(l)
+            break
+          }
+          l = l + 1
+        }
         return !entry.cancelled
       }
       i = i + 1
@@ -1497,6 +1563,24 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       }
     }
   }
+}
+
+/// Appends ` for <owner>` to a work line, nothing for owner 0.
+effect fn ownerText(line: &mut String, owner: u64) -> ()
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  if owner == 0 {
+    return ()
+  }
+  run line.append(" for ")
+  let mut to = Printer.make(false)
+  let upper = owner / 4294967296
+  if upper != 0 {
+    run to.unsigned(upper)
+    run to.out.append(":")
+  }
+  run to.unsigned(owner % 4294967296)
+  run line.append(String.view(&to.out))
 }
 
 fn isTextInput(kind: NodeKind) -> bool {
