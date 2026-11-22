@@ -130,6 +130,11 @@ impl Dom {
     return run self.virtuals.report(Slice.view<u8>(self.scratch.asSlice(), 0, length))
   }
 
+  /// Where item `index` of virtual list `id` starts in the list, as the page's spacers place it.
+  pub fn virtualPrefix(self: &Self, id: u32, index: usize) -> f32 {
+    return self.virtuals.prefix(id, index)
+  }
+
   /// Sends the spacers of lists whose measurements changed when no render did.
   pub effect fn flushVirtual(self: &mut Self) -> ()
     ! OutOfMemoryError
@@ -201,6 +206,7 @@ impl Dom {
     if self.cloning {
       self.templates.endBatch()
     }
+    run self.virtuals.settle()
   }
 }
 

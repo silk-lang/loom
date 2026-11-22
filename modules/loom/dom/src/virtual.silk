@@ -65,6 +65,13 @@ impl Ports {
         let at = self.find(id)
         if at != usize.MAX {
           let port = &mut self.ports.asMutSlice()[at]
+          if port.list.previous != usize.MAX {
+            // The count changed: these rows say where items came and went.
+            let count = port.list.count
+            let before = Intrinsic.replace(port.list.rows, List<VirtualItem>.make())
+            drop run port.list.remap(count, before.asSlice(), items.asSlice())
+            port.dirty = true
+          }
           if !sameRows(port.list.rows.asSlice(), items.asSlice()) {
             port.list.rows.clear()
             run port.list.rows.appendSlice(items.asSlice())
@@ -95,6 +102,24 @@ impl Ports {
     }
   }
 
+  /// Ends a count change no rows were bound for: the bound rows kept their indices.
+  pub effect fn settle(self: &mut Self) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut i: usize = 0
+    while i < self.ports.length() {
+      let port = &mut self.ports.asMutSlice()[i]
+      if port.list.previous != usize.MAX {
+        let count = port.list.count
+        let rows = Intrinsic.replace(port.list.rows, List<VirtualItem>.make())
+        drop run port.list.remap(count, rows.asSlice(), rows.asSlice())
+        port.list.rows = move rows
+        port.dirty = true
+      }
+      i = i + 1
+    }
+  }
+
   effect fn configure(self: &mut Self, id: u32, count: usize, options: VirtualOptions) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
@@ -107,6 +132,19 @@ impl Ports {
     }
     let port = &mut self.ports.asMutSlice()[at]
     let list = &mut port.list
+    let known = if list.previous == usize.MAX { list.count } else { list.previous }
+    if list.count != count && known != 0 && list.options.revision == options.revision
+      && list.options.estimatedHeight == options.estimatedHeight && list.options.gap == options.gap {
+      // Items came or went: the rows bound next say where (`take`, or `settle` when none are).
+      list.previous = known
+      list.count = count
+      list.options = options
+      return ()
+    }
+    if list.previous != usize.MAX {
+      list.count = list.previous
+      list.previous = usize.MAX
+    }
     let fresh = list.count != count || list.options.revision != options.revision
       || list.options.estimatedHeight != options.estimatedHeight
       || list.options.gap != options.gap
@@ -118,6 +156,16 @@ impl Ports {
     let overscan = list.options.overscan != options.overscan
     list.options = options
     drop list.range(fresh || overscan)
+  }
+
+  /// Where item `index` of list `id` starts in the list, by its measured or estimated height.
+  pub fn prefix(self: &Self, id: u32, index: usize) -> f32 {
+    let at = self.find(id)
+    if at == usize.MAX {
+      return 0.0
+    }
+    let list = &self.ports.asSlice()[at].list
+    return list.prefix(least(index, list.count))
   }
 
   /// The indices list `id` wants mounted, in order: the range around the viewport and the
