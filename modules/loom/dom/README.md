@@ -72,6 +72,17 @@ through a host import and returns; the page posts the result when it has it, and
 imports: { app: { load: (id) => fetch(`/items/${id}`).then((r) => r.text()).then((t) => page.post("item", t)) } }
 ```
 
+## Virtual lists
+
+`h.virtualList` works here as on the tree. `src/virtual.silk` keeps each list's controller
+(ui-tree's, as plain data), and the page puts spacers in place of the rows that are not
+mounted. Once a frame it reports the list's scroll offset and height, the bound rows' heights
+and the rows that hold focus or the focused widget's active descendant. The spacers are never
+scroll anchors, so the browser keeps the visible row in place when a height above it is
+measured. A page cannot see a screen reader's browse cursor, so that row is not retained
+here; rows carry their position and the list's size. [demo](demo) is 100,000 messages:
+`demo/build.sh serve`, and `node demo/check.mjs` after a build drives it in Chromium.
+
 ## Server rendering, hydration and static builds
 
 `render` runs a program up to its first view at a path and returns the markup: `init`, its
@@ -99,8 +110,7 @@ docs/build.sh --base /docs   # for a site under /docs
 
 ## What the page does not do
 
-- Virtual lists and decoded (raw pixel) images are ignored. Virtual lists are not core; the
-  browser scrolls real nodes.
+- Decoded (raw pixel) images are ignored.
 - Hydration keeps the nodes but sets every property again.
 - An image or icon a program defines from bytes becomes a blob URL; a server render shows
   only the ones it was given an address for.

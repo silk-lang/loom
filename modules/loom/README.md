@@ -336,11 +336,32 @@ managed images, measured bounds, custom GPU content, shared text caches and OS a
 
 ## Virtual lists
 
-`Ui.virtualItems` builds keyed content for the range requested by the backend.
-Variable-height measurements, overscan selection, scroll anchoring, focus retention,
-and private layout spacers live in `ui-tree`, available through its plain-data
-[mutation/query protocol](https://github.com/silk-lang/silkui/blob/main/modules/tree/README.md#virtual-scrolling). The app runtime only
-forwards configuration and node bindings and reconciles new range requests.
+A virtual list mounts only the rows the tree asks for. The tree requests sorted indices: the
+rows around the viewport, and any row that holds keyboard focus, the focused widget's active
+descendant or a screen reader's browse cursor, each kept until it leaves. Measurements,
+overscan, scroll anchoring and the layout spacers live in `ui-tree`, behind its plain-data
+[mutation/query protocol](https://github.com/silk-lang/silkui/blob/main/modules/tree/README.md#virtual-scrolling);
+Loom reads the request with `Backend.indices` and builds those rows. In a browser page
+`loom-dom` answers it, with spacers in the document ([loom-dom](dom/README.md#virtual-lists)).
+
+In a `Program` view, `h.virtualList` is the scroll column itself, a `list` by default:
+
+```silk
+h.virtualList(
+  FEED,
+  model.messages.length(),
+  VirtualOptions { estimatedHeight: 48.0, overscan: 128.0, gap: 0.0, revision: model.revision },
+  &[h.accessRole(Role.Feed), h.style(&[css.height(px(480.0))])],
+  |i| model.messages.get(i).id,
+  |i| messageRow(model.messages.get(i), h),
+)
+```
+
+`Ui.virtualItems(listKey, count, options, key, body)` does the same inside the open column of
+an `App` view. Each row is a `listitem` wrapper with its logical position and the count. Keys
+must be unique and stable: when items are inserted or removed, a retained row keeps its node,
+and so its focus, by key. Unmounted rows keep no state; keep it in the model. Bump
+`options.revision` after a reorder to discard measured heights.
 
 The [scroll demo](https://github.com/silk-lang/nonstd/tree/7d6c3693a9ad1fec24127985626ab4224f9f1995/examples/scroll-demo) is a complete example. This separation removes
 virtualization geometry from the app layer; the rest of `loom` talks to any

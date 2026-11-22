@@ -11,6 +11,7 @@ const CALL_DEADLINE = 5;
 const CALL_FRAMES = 6;
 const CALL_LOCATION = 7;
 const CALL_POST = 8;
+const CALL_VIRTUAL = 9;
 
 const KIND_TEXT = 1;
 const KIND_IMAGE = 2;
@@ -514,6 +515,129 @@ class Page {
     this.canvases = new ResizeObserver((entries) => {
       for (const entry of entries) this.paint(this.idOf(entry.target));
     });
+    // Virtual lists (op 41), by the id of their scroll container. The program keeps each
+    // list's controller; the page shows spacers in place of unmounted rows and reports, once
+    // a frame, the scroll, the bound rows' heights and the rows holding focus.
+    this.virtuals = new Map();
+    this.virtualSizes = new Map();
+    this.virtualFrame = 0;
+    this.rowSizes = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const id = this.idOf(entry.target);
+        if (id) this.virtualSizes.set(id, entry.borderBoxSize?.[0]?.blockSize ?? entry.target.getBoundingClientRect().height);
+      }
+      this.virtualSoon();
+    });
+    this.portSizes = new ResizeObserver(() => this.virtualSoon());
+  }
+
+  // The spacers of virtual list `id`: `rows` holds each bound row's id and the space before
+  // it, `tail` the space after the last.
+  virtualize(id, rows, tail) {
+    const port = this.nodes.get(id);
+    if (!port) return;
+    let list = this.virtuals.get(id);
+    if (!list || list.node !== port) {
+      if (list) this.unvirtual(id);
+      list = { node: port, rows: new Map(), spacers: new Map(), tail: spacer(), state: null };
+      this.virtuals.set(id, list);
+      port.silkTail = list.tail;
+      port.addEventListener("scroll", () => this.virtualSoon(), { passive: true });
+      this.portSizes.observe(port);
+    }
+    const bound = new Map();
+    for (const [row, space] of rows) {
+      const node = this.nodes.get(row);
+      if (!node) continue;
+      bound.set(row, node);
+      if (list.rows.get(row) !== node) this.rowSizes.observe(node);
+      let gap = list.spacers.get(row);
+      if (space > 0) {
+        if (!gap) list.spacers.set(row, (gap = spacer()));
+        gap.style.height = `${space}px`;
+        if (node.previousSibling !== gap) node.before(gap);
+      } else if (gap) {
+        gap.remove();
+        list.spacers.delete(row);
+      }
+    }
+    for (const [row, node] of list.rows) {
+      if (bound.get(row) === node) continue;
+      this.rowSizes.unobserve(node);
+      if (!bound.has(row)) {
+        list.spacers.get(row)?.remove();
+        list.spacers.delete(row);
+      }
+    }
+    list.rows = bound;
+    list.tail.style.height = `${tail}px`;
+    if (port.lastChild !== list.tail) port.append(list.tail);
+    this.virtualSoon();
+  }
+
+  unvirtual(id) {
+    const list = this.virtuals.get(id);
+    if (!list) return;
+    this.virtuals.delete(id);
+    for (const node of list.rows.values()) this.rowSizes.unobserve(node);
+    for (const gap of list.spacers.values()) gap.remove();
+    list.tail.remove();
+    this.portSizes.unobserve(list.node);
+    list.node.silkTail = undefined;
+  }
+
+  virtualSoon() {
+    if (this.virtuals.size && !this.virtualFrame) {
+      this.virtualFrame = requestAnimationFrame(() => {
+        this.virtualFrame = 0;
+        this.reportVirtual();
+      });
+    }
+  }
+
+  // The bound row of `list` that holds `node`, or 0.
+  rowHolding(list, node) {
+    for (; node && node !== list.node; node = node.parentNode) {
+      if (node.parentNode === list.node) {
+        const id = this.idOf(node);
+        return id && list.rows.get(id) === node ? id : 0;
+      }
+    }
+    return 0;
+  }
+
+  reportVirtual() {
+    if (this.busy || this.failed) return this.virtualSoon();
+    const focus = document.activeElement;
+    const target = focus?.getAttribute?.("aria-activedescendant");
+    const described = target ? document.getElementById(target) : null;
+    const lists = [];
+    for (const [id, list] of this.virtuals) {
+      if (!list.node.isConnected) {
+        this.unvirtual(id);
+        continue;
+      }
+      const state = [list.node.scrollTop, list.node.clientHeight, this.rowHolding(list, focus), this.rowHolding(list, described)];
+      if (list.state && state.every((value, i) => value === list.state[i])) continue;
+      list.state = state;
+      lists.push([id, ...state]);
+    }
+    const sizes = [...this.virtualSizes];
+    this.virtualSizes.clear();
+    if (!lists.length && !sizes.length) return;
+    const length = 8 + lists.length * 20 + sizes.length * 8;
+    const at = this.call(CALL_SCRATCH, length);
+    const view = new DataView(this.exports.memory.buffer, at, length);
+    let offset = 0;
+    const word = (value) => { view.setUint32(offset, value, true); offset += 4; };
+    const float = (value) => { view.setFloat32(offset, value, true); offset += 4; };
+    word(lists.length);
+    for (const [id, scroll, height, focused, active] of lists) {
+      word(id); float(scroll); float(height); word(focused); word(active);
+    }
+    word(sizes.length);
+    for (const [id, height] of sizes) { word(id); float(height); }
+    this.call(CALL_VIRTUAL, length);
   }
 
   // The nodes of a server render, by id: elements carry theirs in `data-silk` (`data-silk-html`
@@ -682,7 +806,8 @@ class Page {
           if (parent.silkLazy !== undefined) this.register(parent);
           const child = this.nodes.get(r.u32());
           const before = r.u32() || 0;
-          const next = before ? this.nodes.get(before) : null;
+          // A virtual list's tail spacer stays last.
+          const next = before ? this.nodes.get(before) : parent.silkTail?.parentNode === parent ? parent.silkTail : null;
           // An adopted node is often where it belongs already.
           if (child.parentNode !== parent || child.nextSibling !== next) parent.insertBefore(child, next);
           break;
@@ -954,6 +1079,18 @@ class Page {
           if (root === 0) this.runtimeSheets.reorder(ids);
           break;
         }
+        case 41: {
+          const id = r.u32();
+          const count = r.u32();
+          if (count === 0xffffffff) {
+            this.unvirtual(id);
+            break;
+          }
+          const rows = [];
+          for (let i = 0; i < count; i++) rows.push([r.u32(), r.f32()]);
+          this.virtualize(id, rows, r.f32());
+          break;
+        }
         case 27: {
           // The first root closes: the mounted element shows nothing.
           if (r.u32() !== 0) break;
@@ -969,6 +1106,8 @@ class Page {
     if (this.destroyed.length) this.removeDestroyed();
     if (this.relating) this.relate();
     this.place();
+    // An active descendant may have moved to another row.
+    this.virtualSoon();
   }
 
   // Writes each relation's targets as their element ids, giving a target without one
@@ -1756,8 +1895,14 @@ class Page {
       },
       { passive: false },
     );
-    on("focusin", (event) => this.direct(EVENT.focus, event.target, event));
-    on("focusout", (event) => this.direct(EVENT.blur, event.target, event));
+    on("focusin", (event) => {
+      this.direct(EVENT.focus, event.target, event);
+      this.virtualSoon();
+    });
+    on("focusout", (event) => {
+      this.direct(EVENT.blur, event.target, event);
+      this.virtualSoon();
+    });
     on(
       "scroll",
       (event) => {
@@ -1837,6 +1982,16 @@ const TAGS = [["DIV", "A"], ["#text"], ["IMG"], ["SPAN"], ["INPUT", "TEXTAREA"],
 
 // How many floats follow each canvas command's code.
 const CANVAS_FLOATS = [9, 2, 2, 4, 6, 0, 4, 5];
+
+// The space a virtual list keeps for rows it does not mount. It is never a scroll anchor, so
+// the browser anchors on a row and a measured height above it does not move what shows.
+function spacer() {
+  const node = document.createElement("div");
+  node.setAttribute("aria-hidden", "true");
+  node.dataset.silkSpacer = "";
+  node.style.cssText = "flex: none; overflow-anchor: none; pointer-events: none;";
+  return node;
+}
 
 function now() {
   return performance.now() / 1000;

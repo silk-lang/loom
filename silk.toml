@@ -9,6 +9,7 @@ members = [
   "modules/loom",
   "modules/loom/demo",
   "modules/loom/dom",
+  "modules/loom/dom/demo",
   "modules/loom/examples",
   "modules/loom/inspect",
   "modules/loom/mirror",

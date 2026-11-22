@@ -630,6 +630,12 @@ impl<'t, 'f> Backend for Aside<'t, 'f> {
   fn range(self: &Self, id: u32) -> Option<VirtualRange> {
     return self.tree.virtualRange(id)
   }
+
+  effect fn indices(self: &Self, id: u32, out: &mut List<usize>) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return run Backend.indices(&self.tree.*, id, &mut out)
+  }
 }
 
 /// The devtools' link to the inspector of their own process: each line goes into the local
