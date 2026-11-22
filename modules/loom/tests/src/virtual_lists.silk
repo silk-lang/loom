@@ -5,6 +5,10 @@ import loom.app { App, Context, NoCommand }
 import loom.runtime { Runtime, pump }
 import loom_tree.lib { frame }
 import loom.ui { Ui }
+import loom.lib { drain, Document, Node, NoOutput, Program, Update }
+import loom.program as program
+import ui_tree.mutation { Role }
+import silk.num.u64
 import loom.virtual_list { VirtualOptions }
 import ui_tree.legacy { UiTree, TreeError, Batch, FrameInput, findAll }
 import ui_tree.mutation { Mutation }
@@ -105,9 +109,10 @@ effect fn body() -> ()
     tree.node(tree.focused).id == focused,
     "focused row remains mounted across a distant jump",
   )
+  let indices = &app.ui.virtualLists.asSlice()[0].indices
   run Testing.expect(
-    app.ui.virtualLists.asSlice()[0].first > 1000,
-    "distant jump updates the range inside a lazy ancestor",
+    indices.get(0) == 1 && indices.get(1) > 1000,
+    "distant jump requests far rows inside a lazy ancestor, and keeps the focused one",
   )
   run Testing.expect(tree.stats.nodes < 50, "distant jump keeps the UI tree bounded")
   let list = &tree.virtualLists.asSlice()[0]
@@ -157,6 +162,99 @@ effect fn body() -> ()
     app.ui.virtualLists.length() == 0 && tree.virtualLists.length() == 0,
     "removing a list releases view bookkeeping and tree measurements",
   )
+}
+
+struct Feed {
+  /// Item keys, top to bottom.
+  items: List<u64>,
+}
+
+union FeedMessage {
+  Prepend,
+}
+
+type FeedNext = Update<Feed, NoCommand, NoOutput>
+
+impl Program<FeedMessage, NoCommand> for Feed {
+  effect fn init() -> FeedNext
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    let mut items = List<u64>.make()
+    let mut i: u64 = 0
+    while i < 5000 {
+      run items.append(i)
+      i = i + 1
+    }
+    return FeedNext.of(Feed { items: move items })
+  }
+
+  effect fn update(mut model: Feed, message: FeedMessage) -> FeedNext
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    match move message {
+      FeedMessage.Prepend => {
+        let fresh = 100000 + usize.toU64(model.items.length())
+        run model.items.insert(0, fresh)
+      }
+    }
+    return FeedNext.of(move model)
+  }
+
+  fn view(model: &Feed, h: &Document<FeedMessage>) -> Node {
+    return h.virtualList(
+      7,
+      model.items.length(),
+      VirtualOptions { estimatedHeight: 40.0, overscan: 100.0, gap: 0.0, revision: 0 },
+      &[h.testId("feed"), h.style(&[css.height(px(300.0))])],
+      |i| model.items.get(i),
+      |i| h.box(&[h.testId("item"), h.tabIndex(0), h.style(&[css.height(px(40.0))])], &[h.number(u64.toI64(model.items.get(i)))]),
+    )
+  }
+}
+
+effect fn documentBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError
+  ? &mut Allocator {
+  let fonts = run fixtures.fonts()
+  let mut tree = run UiTree.make(&fonts)
+  let mut app = run program.make<Feed, FeedMessage, NoCommand>()
+  run app.start(&mut tree, 0.0)
+  run frame(&mut app, &mut tree, viewport())
+  let mut found = List<u32>.make()
+  run findAll(&tree, "feed", &mut found)
+  let port = found.get(0)
+  found.clear()
+  run findAll(&tree, "item", &mut found)
+  run Testing.expect(found.length() > 6 && found.length() < 30, "h.virtualList builds only nearby rows")
+  let row = tree.node(tree.slotOf(found.get(2))).parent
+  run Testing.expect(
+    tree.node(row).accessRole == Role.ListItem && tree.node(tree.slotOf(port)).accessRole == Role.List,
+    "the column is a list of list items",
+  )
+  let focused = found.get(2)
+  let mut batch = Batch.make()
+  run batch.push(Mutation.Focus { id: focused })
+  run batch.push(Mutation.ScrollTo { id: port, x: 0.0, y: 100000.0 })
+  run tree.apply(run batch.take())
+  drop run pump(&mut app, &mut tree)
+  run frame(&mut app, &mut tree, viewport())
+  run Testing.expect(tree.node(tree.focused).id == focused, "the focused row stays across a distant jump")
+  let indices = &app.ui.virtualLists.asSlice()[0].indices
+  run Testing.expect(indices.get(0) == 2 && indices.get(1) > 2000, "far rows and the focused one are requested")
+  app.send(FeedMessage.Prepend)
+  run drain(&mut app, &mut tree)
+  run frame(&mut app, &mut tree, viewport())
+  run Testing.expect(tree.node(tree.focused).id == focused, "an item inserted above keeps the focused row")
+  run Testing.expect(
+    app.ui.virtualLists.asSlice()[0].indices.get(0) == 3,
+    "at its new index, found by its key",
+  )
+}
+
+test effect fn documentList() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run documentBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
 test effect fn measuredList() -> ()

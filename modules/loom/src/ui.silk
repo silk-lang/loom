@@ -18,7 +18,7 @@ import ui_protocol.css { Value }
 import ui_protocol.css
 import ui_protocol.css { px, number, Keyword, Declaration }
 import ui_protocol.options { AnchorOptions }
-import virtual_list { VirtualList, VirtualOptions, VirtualRow }
+import virtual_list { VirtualList, VirtualOptions, VirtualRow, VirtualSlot }
 import heap { Heap }
 import aria { AriaField, AriaValues }
 import ui_protocol.aria { isNamedAttribute }
@@ -1507,17 +1507,19 @@ impl<M> Ui<M> {
     self.current = parent
   }
 
-  /// Mounts the visible items of a variable-height vertical list in the current column.
+  /// Mounts the requested items of a variable-height vertical list in the current column.
   ///
   /// # Details
   ///
   /// The current column must have a bounded height. This method owns its scrolling and
   /// children. Do not add other children, gaps, or vertical padding to that column.
   /// Item keys must be unique and stable. `listKey` must be unique in the view.
-  /// A focused item remains mounted outside the visible range until focus leaves it.
+  /// The backend requests sorted indices: the rows around the viewport, and any row that
+  /// holds keyboard focus, the focused widget's active descendant or a screen reader's
+  /// browse cursor, each kept until it leaves. Each row is a `listitem` with its logical
+  /// position and the item count; give the column the `list` (or `feed`) role.
   /// The tree measures heights after layout. Width changes and `options.revision` changes
   /// discard measurements. Unmounted items retain no widget state; keep data in the model.
-  /// Inspection and native accessibility expose mounted items only.
   /// Use `runtime.frame` in custom hosts to settle measurements before presentation.
   pub fn virtualItems(
     self: &mut Self,
@@ -1527,78 +1529,116 @@ impl<M> Ui<M> {
     key: fn(usize) -> u64,
     body: fn(&mut Ui<M>, usize) -> (),
   ) -> () {
+    let v = self.virtualOpen(listKey, options)
+    if v == usize.MAX {
+      return ()
+    }
+    let mut wanted = List<usize>.make()
+    self.virtualLists.asSlice()[v].wanted(&mut self.heap, &mut wanted, count, options, key)
+    self.virtualCommit(v, count, options, wanted.asSlice())
+    let mut r: usize = 0
+    while r < wanted.length() {
+      let index = wanted.get(r)
+      self.virtualRow(v, index, key(index), count, |ui| body(&mut ui, index))
+      r = r + 1
+    }
+  }
+
+  /// `virtualItems` for rows a view builder already chose (see `VirtualList.wanted`):
+  /// `body(ui, r)` fills row `rows[r]`.
+  pub fn virtualPlay(
+    self: &mut Self,
+    listKey: u64,
+    count: usize,
+    options: VirtualOptions,
+    rows: &[VirtualSlot],
+    body: fn(&mut Ui<M>, usize) -> (),
+  ) -> () {
+    let v = self.virtualOpen(listKey, options)
+    if v == usize.MAX {
+      return ()
+    }
+    let mut wanted = List<usize>.make()
+    let mut r: usize = 0
+    while r < rows.length {
+      self.heap.alloc(wanted.append(rows[r].index))
+      r = r + 1
+    }
+    self.virtualCommit(v, count, options, wanted.asSlice())
+    r = 0
+    while r < rows.length {
+      let at = r
+      self.virtualRow(v, rows[r].index, rows[r].key, count, |ui| body(&mut ui, at))
+      r = r + 1
+    }
+  }
+
+  /// The view's virtual list `listKey`, made on the first render, or `usize.MAX` in a pass
+  /// that may not make it.
+  pub fn virtualAt(self: &Self, listKey: u64) -> usize {
     let mut v: usize = 0
-    while v < self.virtualLists.length() && self.virtualLists.asSlice()[v].key != listKey {
+    while v < self.virtualLists.length() {
+      if self.virtualLists.asSlice()[v].key == listKey {
+        return v
+      }
       v = v + 1
     }
-    if v == self.virtualLists.length() {
-      if self.dispatching || self.searching {
-        return ()
-      }
-      self.heap.alloc(self.virtualLists.append(VirtualList.make(listKey, options)))
+    return usize.MAX
+  }
+
+  fn virtualOpen(self: &mut Self, listKey: u64, options: VirtualOptions) -> usize {
+    let v = self.virtualAt(listKey)
+    if v != usize.MAX {
+      return v
     }
+    if self.dispatching || self.searching {
+      return usize.MAX
+    }
+    self.heap.alloc(self.virtualLists.append(VirtualList.make(listKey, options)))
+    return self.virtualLists.length() - 1
+  }
+
+  fn virtualCommit(self: &mut Self, v: usize, count: usize, options: VirtualOptions, wanted: &[usize]) -> () {
     if !self.dispatching && !self.searching {
       let list = &mut self.virtualLists.asMutSlice()[v]
-      if list.count != count || list.options.revision != options.revision {
-        if list.pinned != usize.MAX {
-          let mut candidate: usize = 0
-          while candidate < count && key(candidate) != list.pinnedKey {
-            candidate = candidate + 1
-          }
-          list.pinned = if candidate < count {
-            candidate
-          } else {
-            usize.MAX
-          }
-        }
-      }
       list.count = count
-      if list.first > count {
-        list.first = count
-      }
-      if list.end > count {
-        list.end = count
-      }
       list.options = options
       list.port = self.current
       list.seen = true
       list.rows.clear()
+      list.indices.clear()
+      self.heap.alloc(list.indices.appendSlice(wanted))
     }
     self.style(
       &[css.overflowY(Overflow.Auto), css.overflowX(Overflow.Hidden), css.minHeight(px(0.0))],
     )
-    let first = self.virtualLists.asSlice()[v].first
-    let end = self.virtualLists.asSlice()[v].end
-    let pinned = self.virtualLists.asSlice()[v].pinned
-    let mut i = if pinned < first {
-      pinned
-    } else {
-      first
-    }
-    while i < end || (pinned < count && i == pinned) {
-      self.key(key(i))
-      self.column(
-        |ui| {
-          ui.style(&[css.flexShrink(0.0)])
-          if !ui.dispatching && !ui.searching {
-            ui.heap.alloc(
-              ui.virtualLists.asMutSlice()[v].rows.append(
-                VirtualRow { index: i, entry: ui.current },
-              ),
-            )
-          }
-          body(&mut ui, i)
-        },
-      )
-      let cursor = i + 1
-      if i < first {
-        i = first
-      } else if cursor == end && pinned >= end && pinned < count {
-        i = pinned
-      } else {
-        i = cursor
-      }
-    }
+  }
+
+  fn virtualRow(
+    self: &mut Self,
+    v: usize,
+    index: usize,
+    itemKey: u64,
+    count: usize,
+    body: fn(&mut Ui<M>) -> (),
+  ) -> () {
+    self.key(itemKey)
+    self.column(
+      |ui| {
+        ui.style(&[css.flexShrink(0.0)])
+        ui.accessRole(Role.ListItem)
+        ui.posInSet(clampI32(index + 1))
+        ui.setSize(clampI32(count))
+        if !ui.dispatching && !ui.searching {
+          ui.heap.alloc(
+            ui.virtualLists.asMutSlice()[v].rows.append(
+              VirtualRow { index: index, key: itemKey, entry: ui.current },
+            ),
+          )
+        }
+        body(&mut ui)
+      },
+    )
   }
 
   /// A leaf node of `kind` with no body.
@@ -3241,4 +3281,9 @@ impl<M> Ui<M> {
 
 fn flagValue(value: bool) -> i32 {
   return if value { 1 } else { 0 }
+}
+
+/// `value` as an ARIA position or size, capped at `i32.MAX`.
+fn clampI32(value: usize) -> i32 {
+  return if value > 2147483647 { 2147483647 } else { u32.toI32(usize.toU32(value)) }
 }

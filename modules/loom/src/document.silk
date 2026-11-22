@@ -17,7 +17,8 @@ pub import ui { Surface }
 pub import ui { Reply, DefaultAction }
 pub import ui_protocol.grid { Grid }
 pub import ui_protocol.mutation { Role, Cursor, CanvasCommand, TriState, Live, Orientation }
-pub import ui_protocol.options { AnchorOptions }
+pub import ui_protocol.options { AnchorOptions, VirtualOptions }
+import virtual_list { VirtualList, VirtualSlot }
 pub import ui_protocol.record { Event, EventKind }
 import ui_protocol.css
 import ui_protocol.css { Declaration, Keyword, px }
@@ -71,7 +72,21 @@ enum Shape {
   /// A keyed lazy region (see `Document.lazy`): its one kid, or none when the last render's
   /// region is reused.
   Lazy,
+  /// A virtual list's scroll column (see `Document.virtualList`): `hash` is its key, `text.start`
+  /// its entry in the tree's `virtuals`, and each kid fills one row.
+  Virtual,
 }
+
+/// A virtual list a view built: its rows are `rowCount` entries of the tree's `rows` from
+/// `rowStart`.
+struct VirtualSpec {
+  count: usize,
+  options: VirtualOptions,
+  rowStart: u32,
+  rowCount: u32,
+}
+
+impl Copy for VirtualSpec {}
 
 struct Record {
   shape: Shape,
@@ -152,6 +167,8 @@ struct Tree {
   grids: List<Grid>,
   canvas: List<CanvasCommand>,
   bytes: List<u8>,
+  virtuals: List<VirtualSpec>,
+  rows: List<VirtualSlot>,
   /// How many replies this pass kept.
   replies: u32,
   dispatching: bool,
@@ -194,6 +211,8 @@ impl Tree {
       grids: List<Grid>.make(),
       canvas: List<CanvasCommand>.make(),
       bytes: List<u8>.make(),
+      virtuals: List<VirtualSpec>.make(),
+      rows: List<VirtualSlot>.make(),
       replies: 0,
       dispatching: dispatching,
       kind: kind,
@@ -364,6 +383,8 @@ pub struct Document<M> {
   slots: *mut Slots<M>,
   event: *const Event,
   hints: *const LazyHints,
+  /// The view's virtual lists as the last render and the backend left them.
+  virtuals: *const List<VirtualList>,
   /// Whether `lazy` may skip a body the hints name.
   reuse: bool,
 }
@@ -703,6 +724,80 @@ impl<M> Document<M> {
     return self.node(Shape.Fragment, &[], &[], nodes.asSlice())
   }
 
+  /// A vertical list of `count` items that builds only the rows the tree asks for: those
+  /// around the viewport, and any row that holds keyboard focus, the focused widget's active
+  /// descendant or a screen reader's browse cursor. A flex column with role `list` (an
+  /// `accessRole` attribute replaces it, as `Role.Feed` for a stream of articles); give it
+  /// a bounded height, and no other children, gaps or vertical padding. It scrolls itself.
+  ///
+  /// `row(index)` returns the one node of item `index`, which goes in a `listitem` wrapper
+  /// with its position and the count. `itemKey(index)` is the item's stable, unique key,
+  /// so a row keeps its node (and its focus) when items are inserted or removed. `key`
+  /// names the list in the view. Unmounted rows keep no state; keep it in the model. The
+  /// tree measures heights after layout; a change of `options.revision` discards them.
+  pub fn virtualList(
+    self: &Self,
+    key: u64,
+    count: usize,
+    options: VirtualOptions,
+    attributes: &[Attr],
+    itemKey: fn(usize) -> u64,
+    row: fn(usize) -> Node,
+  ) -> Node {
+    let mut anchor: u8 = 0
+    let mut heap = Heap.make()
+    let mut wanted = List<usize>.make()
+    let lists = unsafe Pointer.borrow(&anchor, self.virtuals)
+    let mut v: usize = 0
+    while v < lists.length() {
+      if lists.asSlice()[v].key == key {
+        lists.asSlice()[v].wanted(&mut heap, &mut wanted, count, options, itemKey)
+        break
+      }
+      v = v + 1
+    }
+    let mut nodes = List<Node>.make()
+    let mut r: usize = 0
+    while r < wanted.length() {
+      let index = wanted.get(r)
+      let mut node = row(index)
+      let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
+      let shape = tree.records.get(u32.toUsize(node.index)).shape
+      if shape == Shape.Fragment || shape == Shape.Overlay {
+        node = self.node(Shape.Box, &[], &[], &[node])
+      }
+      heap.alloc(nodes.append(node))
+      r = r + 1
+    }
+    let flex = self.style(&[css.display(Keyword.Flex), css.flexDirection(FlexDirection.Column)])
+    let listRole = self.accessRole(Role.List)
+    let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
+    let spec = usize.toU32(tree.virtuals.length())
+    let rowStart = usize.toU32(tree.rows.length())
+    r = 0
+    while r < wanted.length() {
+      let index = wanted.get(r)
+      tree.heap.alloc(tree.rows.append(VirtualSlot { index: index, key: itemKey(index) }))
+      r = r + 1
+    }
+    tree.heap.alloc(
+      tree.virtuals.append(
+        VirtualSpec {
+          count: count,
+          options: options,
+          rowStart: rowStart,
+          rowCount: usize.toU32(wanted.length()),
+        },
+      ),
+    )
+    let node = tree.add(Shape.Virtual, Span { start: spec, length: 0 }, &[flex, listRole], attributes, nodes.asSlice())
+    let at = u32.toUsize(node.index)
+    let mut record = tree.records.get(at)
+    record.hash = key
+    tree.records.set(at, record)
+    return node
+  }
+
   /// A view written for messages of type `CM`, with each message wrapped as one of this
   /// builder's, as Elm's `Document.map`. `wrap` is called before `map` returns and is not stored.
   pub fn map<CM>(self: &Self, view: fn(&Document<CM>) -> Node, wrap: fn(CM) -> M) -> Node {
@@ -714,6 +809,7 @@ impl<M> Document<M> {
       slots: Pointer.fromMutRef(&mut inner),
       event: self.event,
       hints: self.hints,
+      virtuals: self.virtuals,
       reuse: self.reuse,
     }
     let node = view(&builder)
@@ -1440,6 +1536,20 @@ fn fill<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, record: Record) ->
   }
 }
 
+/// Sets the attributes of a virtual list's column and plays its rows.
+fn fillVirtual<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, record: Record) -> () {
+  apply<M>(&mut ui, tree, slots, record.attrStart, record.attrCount)
+  let spec = tree.virtuals.get(u32.toUsize(record.text.start))
+  let rows = Slice.view(tree.rows.asSlice(), u32.toUsize(spec.rowStart), u32.toUsize(spec.rowCount))
+  ui.virtualPlay(
+    record.hash,
+    spec.count,
+    spec.options,
+    rows,
+    |ui, r| place<M>(&mut ui, tree, slots, tree.kids.get(u32.toUsize(record.kidStart) + r)),
+  )
+}
+
 /// Adds node `index` under the open node.
 fn place<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, index: u32) -> () {
   let record = tree.records.get(u32.toUsize(index))
@@ -1464,6 +1574,10 @@ fn place<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, index: u32) -> ()
   }
   if record.keyed {
     ui.key(record.key)
+  }
+  if record.shape == Shape.Virtual {
+    ui.node(NodeKind.Box, |ui| fillVirtual<M>(&mut ui, tree, slots, record))
+    return ()
   }
   if record.shape == Shape.Image {
     ui.node(NodeKind.Image, |ui| fill<M>(&mut ui, tree, slots, record))
@@ -1503,6 +1617,7 @@ pub fn render<M>(ui: &mut Ui<M>, view: fn(&Document<M>) -> Node) -> () {
       slots: Pointer.fromMutRef(&mut slots),
       event: Pointer.fromRef(ui.dispatched()),
       hints: Pointer.fromRef(ui.lazyHints()),
+      virtuals: Pointer.fromRef(&ui.virtualLists),
       reuse: reuse,
     }
     let root = view(&builder)

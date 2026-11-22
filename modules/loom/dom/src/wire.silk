@@ -267,6 +267,8 @@ pub fn roleName(value: Role) -> string<'static> {
     Role.Document => "document"
     Role.Application => "application"
     Role.Note => "note"
+    Role.ScrollBar => "scrollbar"
+    Role.Feed => "feed"
   }
 }
 

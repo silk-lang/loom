@@ -37,7 +37,7 @@ import ui_protocol.mutation {
 }
 import ui_protocol.record { Event, EventKind }
 import ui_protocol.input { Input, MOD_ALT, MOD_CONTROL, MOD_META, MOD_SHIFT }
-import ui_protocol.options { VirtualItem, VirtualRange, RootOptions }
+import ui_protocol.options { VirtualItem, RootOptions }
 import ui_protocol.root { RootEvent, RootEventKind }
 import backend { Backend, Measured, TreeError }
 import silk.collections.list { List }
@@ -137,6 +137,8 @@ pub struct Runtime<A, M, C> {
   queue: List<M>,
   head: usize,
   batch: List<Mutation>,
+  /// Scratch for the indices a backend requests for a virtual list.
+  virtualWanted: List<usize>,
   records: List<Event>,
   prevented: bool,
   path: List<Identity>,
@@ -191,6 +193,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       queue: List<M>.make(),
       head: 0,
       batch: List<Mutation>.make(),
+      virtualWanted: List<usize>.make(),
       records: List<Event>.make(),
       prevented: false,
       path: List<Identity>.make(),
@@ -1078,26 +1081,19 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     )
   }
 
-  /// Reconciles backend range requests with the virtual view. The tree owns geometry.
+  /// Reconciles the indices the backend requests with the virtual view. The tree owns geometry.
   pub effect fn syncVirtual<B: Backend>(self: &mut Self, tree: &mut B) -> bool
     ! TreeError | OutOfMemoryError
     ? &mut Allocator {
     let mut changed = false
     let mut v: usize = 0
     while v < self.ui.virtualLists.length() {
-      let list = &mut self.ui.virtualLists.asMutSlice()[v]
-      if let Option<VirtualRange>.Some { value } = Backend.range(
-        &tree,
-        self.ui.arena.entry(list.port).id,
-      ) {
-        if value.first != list.first || value.end != list.end || value.pinned != list.pinned {
-          list.first = value.first
-          list.end = value.end
-          list.pinned = value.pinned
-          let entry = run self.diffState.entryOf(&self.ui.arena, value.pinnedId)
-          if entry != NO_ENTRY {
-            list.pinnedKey = self.ui.arena.entry(entry).identity.value
-          }
+      let id = self.ui.arena.entry(self.ui.virtualLists.asSlice()[v].port).id
+      if run Backend.indices(&tree, id, &mut self.virtualWanted) {
+        let list = &mut self.ui.virtualLists.asMutSlice()[v]
+        if !sameIndices(list.indices.asSlice(), self.virtualWanted.asSlice()) {
+          list.indices.clear()
+          run list.indices.appendSlice(self.virtualWanted.asSlice())
           changed = true
         }
       }
@@ -1907,4 +1903,18 @@ effect fn optionsOf(title: &[u8], record: WindowRecord) -> RootOptions
   }
   options.resizable = record.resizable
   return move options
+}
+
+fn sameIndices(a: &[usize], b: &[usize]) -> bool {
+  if a.length != b.length {
+    return false
+  }
+  let mut i: usize = 0
+  while i < a.length {
+    if a[i] != b[i] {
+      return false
+    }
+    i = i + 1
+  }
+  return true
 }
