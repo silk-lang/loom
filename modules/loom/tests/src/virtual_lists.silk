@@ -308,6 +308,28 @@ effect fn pageBody() -> ()
   drop run report(&mut dom, port, 50000.0, 0, &[])
   drop run app.syncVirtual(&mut dom)
   run Testing.expect(app.ui.virtualLists.asSlice()[0].indices.get(0) > 1000, "a blurred row is let go")
+
+  // Rows measured at the top, then a distant scroll, then an item added at the top: the
+  // measurements stay with their items, so a far row moves down by one estimate only.
+  drop run report(&mut dom, port, 0.0, 0, &[])
+  drop run app.syncVirtual(&mut dom)
+  let top = &app.ui.virtualLists.asSlice()[0]
+  let mut sizes = List<u32>.make()
+  let mut r: usize = 0
+  while r < top.rows.length() {
+    run sizes.append(app.ui.arena.entry(top.rows.get(r).entry).id)
+    r = r + 1
+  }
+  drop run report(&mut dom, port, 0.0, 0, sizes.asSlice())
+  drop run app.syncVirtual(&mut dom)
+  drop run report(&mut dom, port, 50000.0, 0, &[])
+  drop run app.syncVirtual(&mut dom)
+  let before = dom.virtualPrefix(port, 4000)
+  run Testing.expect(before > 4000.0 * 40.0, "the measured rows count in the far rows' place")
+  app.send(FeedMessage.Prepend)
+  run drain(&mut app, &mut dom)
+  run Testing.expect(dom.virtualPrefix(port, 4001) == before + 40.0,
+    "an item added at the top moves the rest by its estimate, keeping their measurements")
 }
 
 test effect fn pageList() -> ()
