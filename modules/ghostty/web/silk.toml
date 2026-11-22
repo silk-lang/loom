@@ -2,7 +2,7 @@
 name = "ui-ghostty-web"
 description = "The terminal component in a browser page: libghostty-vt in WebAssembly on the DOM host, with a small built-in shell"
 version = "0.1.0"
-silk-version = "0.1.0-dev.94+93906b8028e6"
+silk-version = "0.1.0-dev.98+dc4d2328ed3a"
 kind = "executable"
 
 [dependencies]

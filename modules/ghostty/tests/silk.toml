@@ -1,7 +1,7 @@
 [package]
 name = "ui-ghostty-tests"
 version = "0.1.0"
-silk-version = "0.1.0-dev.94+93906b8028e6"
+silk-version = "0.1.0-dev.98+dc4d2328ed3a"
 kind = "library"
 exports = []
 
