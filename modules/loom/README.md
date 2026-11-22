@@ -341,7 +341,8 @@ rows around the viewport, and any row that holds keyboard focus, the focused wid
 descendant or a screen reader's browse cursor, each kept until it leaves. Measurements,
 overscan, scroll anchoring and the layout spacers live in `ui-tree`, behind its plain-data
 [mutation/query protocol](https://github.com/silk-lang/silkui/blob/main/modules/tree/README.md#virtual-scrolling);
-Loom reads the request with `Backend.indices` and builds those rows.
+Loom reads the request with `Backend.indices` and builds those rows. In a browser page
+`loom-dom` answers it, with spacers in the document ([loom-dom](dom/README.md#virtual-lists)).
 
 In a `Program` view, `h.virtualList` is the scroll column itself, a `list` by default:
 

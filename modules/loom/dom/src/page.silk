@@ -58,6 +58,10 @@ pub const CALL_LOCATION: u32 = 7
 /// the text in the `b` after them.
 pub const CALL_POST: u32 = 8
 
+/// The host reports its virtual lists: the first `a` bytes of the scratch hold the report
+/// (see `virtual.Ports.report`).
+pub const CALL_VIRTUAL: u32 = 9
+
 struct Unrooted {}
 
 struct Root<P, M, C> {
@@ -174,6 +178,11 @@ pub effect fn call<P: Program<M, C>, M, C: CommandSet<M, R>, ? R>(
       f64.toF32(a),
       f64.toF32(b),
     )
+  } else if op == CALL_VIRTUAL {
+    if run page.dom.reportVirtual(f64.toUsize(a)) {
+      drop run page.host.syncVirtual(&mut page.dom)
+    }
+    run page.dom.flushVirtual()
   } else if op == CALL_DEADLINE {
     return page.host.nextDeadline().unwrapOr(-1.0)
   } else if op == CALL_FRAMES {

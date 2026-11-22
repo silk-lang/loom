@@ -2,6 +2,7 @@
 //! `js/silk-ui-dom.js` as one buffer; the events it hears come back one record at a time.
 import wire { writeMutation, readEvent, readByte, readFloat }
 import templates { Templates }
+import virtual { Ports }
 import loom.backend { Backend, Measured, TreeError }
 import ui_protocol.mutation { Mutation, FIRST_ROOT }
 import ui_protocol.record { Event }
@@ -71,6 +72,7 @@ pub struct Dom {
   height: f32,
   waiting: List<Event>,
   rootsWaiting: List<RootEvent>,
+  virtuals: Ports,
 }
 
 impl Dom {
@@ -86,6 +88,7 @@ impl Dom {
       height: 0.0,
       waiting: List<Event>.make(),
       rootsWaiting: List<RootEvent>.make(),
+      virtuals: Ports.make(),
     }
   }
 
@@ -114,6 +117,29 @@ impl Dom {
     }
     let event = run readEvent(self.scratch.asSlice())
     run self.waiting.append(move event)
+  }
+
+  /// Reads the virtual list report the host wrote in the first `length` bytes of the scratch.
+  /// Returns whether a list may want other rows.
+  pub effect fn reportVirtual(self: &mut Self, length: usize) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    if length > self.scratch.length() {
+      return false
+    }
+    return run self.virtuals.report(Slice.view<u8>(self.scratch.asSlice(), 0, length))
+  }
+
+  /// Sends the spacers of lists whose measurements changed when no render did.
+  pub effect fn flushVirtual(self: &mut Self) -> ()
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    if !self.virtuals.pending() {
+      return ()
+    }
+    self.out.clear()
+    run self.virtuals.write(&mut self.out)
+    apply(self.out.asSlice())
   }
 
   /// The text the host wrote in the first `length` bytes of the scratch: a location.
@@ -156,6 +182,10 @@ impl Dom {
         }
         _ => {}
       }
+      if run self.virtuals.take(&list[i]) {
+        i = i + 1
+        continue
+      }
       if self.cloning {
         run self.templates.placing(&mut self.out, list, i)
       }
@@ -187,6 +217,9 @@ impl Backend for Dom {
     }
     self.early = false
     run self.write(batch.asSlice())
+    if self.virtuals.pending() {
+      run self.virtuals.write(&mut self.out)
+    }
     if self.out.length() != 0 {
       apply(self.out.asSlice())
     }
@@ -233,6 +266,12 @@ impl Backend for Dom {
 
   fn navigate(self: &mut Self, path: string) -> () {
     went(String.utf8Bytes(path))
+  }
+
+  effect fn indices(self: &Self, id: u32, out: &mut List<usize>) -> bool
+    ! OutOfMemoryError
+    ? &mut Allocator {
+    return run self.virtuals.indices(id, &mut out)
   }
 
   effect fn measure(self: &Self, id: u32) -> Option<Measured>

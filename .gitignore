@@ -4,3 +4,4 @@
 *.sock
 node_modules/
 /modules/ghostty/web/dist/
+/modules/loom/dom/demo/dist/

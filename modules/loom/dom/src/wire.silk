@@ -2,8 +2,8 @@ import ui_protocol.stylesheet { StyleSource }
 //! The bytes that cross between the program and `js/silk-ui-dom.js`: mutation batches out,
 //! event records in. Integers are little-endian; a string is its length (u32) and its UTF-8.
 //!
-//! Virtual lists are the one thing not written: a document scrolls its own content, and the
-//! tree's virtualization is not part of the core (see the README).
+//! Virtual list mutations are not written as they are: `virtual` keeps each list's controller
+//! and writes the spacers the page shows in place of unmounted rows (`OP_VIRTUAL`).
 import grid_css { writeGrid }
 import ui_protocol.css { writeDeclaration }
 import ui_protocol.mutation {
@@ -129,6 +129,11 @@ pub const OP_FONT_STYLESHEET: u8 = 35
 pub const OP_KEYFRAMES: u8 = 36
 pub const OP_CUSTOM_PROPERTY: u8 = 37
 
+/// The spacers of virtual list `port`: a count of bound rows, and for each its id and the
+/// space before it, then the space after the last; a count of `u32.MAX` ends the list. The
+/// page also starts reporting the list's scroll, rows and focus (`page.CALL_VIRTUAL`).
+pub const OP_VIRTUAL: u8 = 41
+
 pub effect fn byte(out: &mut Bytes, value: u8) -> ()
   ! OutOfMemoryError
   ? &mut Allocator {
@@ -151,7 +156,7 @@ pub effect fn word(out: &mut Bytes, value: u32) -> ()
   }
 }
 
-effect fn float(out: &mut Bytes, value: f32) -> ()
+pub effect fn float(out: &mut Bytes, value: f32) -> ()
   ! OutOfMemoryError
   ? &mut Allocator {
   run word(&mut out, f32.toBits(value))

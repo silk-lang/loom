@@ -4,7 +4,7 @@ name = "loom-dom"
 description = "Runs a loom program in a browser document"
 version = "0.1.0"
 kind = "library"
-exports = ["lib", "wire", "dom", "page", "html", "grid_css"]
+exports = ["lib", "wire", "dom", "page", "html", "grid_css", "virtual"]
 
 [dependencies]
 loom = { path = "..", package = "loom" }

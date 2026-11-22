@@ -7,6 +7,9 @@ import loom_tree.lib { frame }
 import loom.ui { Ui }
 import loom.lib { drain, Document, Node, NoOutput, Program, Update }
 import loom.program as program
+import loom_dom.dom { Dom }
+import loom_dom.wire { word, float }
+import silk.collections.bytes { Bytes }
 import ui_tree.mutation { Role }
 import silk.num.u64
 import loom.virtual_list { VirtualOptions }
@@ -249,6 +252,68 @@ effect fn documentBody() -> ()
     app.ui.virtualLists.asSlice()[0].indices.get(0) == 3,
     "at its new index, found by its key",
   )
+}
+
+/// A page's report for one list (see `loom_dom.virtual`), written where the page writes it.
+effect fn report(dom: &mut Dom, port: u32, scroll: f32, focused: u32, sizes: &[u32]) -> bool
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let mut bytes = Bytes.make()
+  run word(&mut bytes, 1)
+  run word(&mut bytes, port)
+  run float(&mut bytes, scroll)
+  run float(&mut bytes, 300.0)
+  run word(&mut bytes, focused)
+  run word(&mut bytes, 0)
+  run word(&mut bytes, usize.toU32(sizes.length))
+  let mut i: usize = 0
+  while i < sizes.length {
+    run word(&mut bytes, sizes[i])
+    run float(&mut bytes, 60.0)
+    i = i + 1
+  }
+  drop run dom.reserve(bytes.length())
+  let target = dom.scratch.asMutSlice()
+  let source = bytes.asSlice()
+  i = 0
+  while i < source.length {
+    target[i] = source[i]
+    i = i + 1
+  }
+  return run dom.reportVirtual(bytes.length())
+}
+
+effect fn pageBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError
+  ? &mut Allocator {
+  let mut dom = Dom.make()
+  dom.setViewport(400.0, 400.0)
+  let mut app = run program.make<Feed, FeedMessage, NoCommand>()
+  run app.start(&mut dom, 0.0)
+  run drain(&mut app, &mut dom)
+  let port = app.ui.arena.entry(app.ui.virtualLists.asSlice()[0].port).id
+  drop run report(&mut dom, port, 0.0, 0, &[])
+  drop run app.syncVirtual(&mut dom)
+  let list = &app.ui.virtualLists.asSlice()[0]
+  run Testing.expect(list.rows.length() > 6 && list.rows.length() < 20, "a page mounts the rows around its viewport")
+  let focused = app.ui.arena.entry(list.rows.get(2).entry).id
+  let measured = app.ui.arena.entry(list.rows.get(0).entry).id
+  drop run report(&mut dom, port, 50000.0, focused, &[measured])
+  drop run app.syncVirtual(&mut dom)
+  let far = &app.ui.virtualLists.asSlice()[0].indices
+  run Testing.expect(
+    far.get(0) == 2 && far.get(1) > 1000 && far.length() < 20,
+    "a distant scroll mounts far rows and keeps the focused one",
+  )
+  drop run report(&mut dom, port, 50000.0, 0, &[])
+  drop run app.syncVirtual(&mut dom)
+  run Testing.expect(app.ui.virtualLists.asSlice()[0].indices.get(0) > 1000, "a blurred row is let go")
+}
+
+test effect fn pageList() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run pageBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }
 
 test effect fn documentList() -> ()
