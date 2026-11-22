@@ -134,6 +134,10 @@ pub const OP_CUSTOM_PROPERTY: u8 = 37
 /// page also starts reporting the list's scroll, rows and focus (`page.CALL_VIRTUAL`).
 pub const OP_VIRTUAL: u8 = 41
 
+/// The pixels of a canvas: width, height, whether opaque, then straight RGBA8 bytes with their
+/// length before them (`Mutation.SetCanvasPixels`). A width of 0 gives it back to its commands.
+pub const OP_CANVAS_PIXELS: u8 = 42
+
 pub effect fn byte(out: &mut Bytes, value: u8) -> ()
   ! OutOfMemoryError
   ? &mut Allocator {
@@ -243,6 +247,7 @@ pub fn roleName(value: Role) -> string<'static> {
     Role.Log => "log"
     Role.Timer => "timer"
     Role.ProgressBar => "progressbar"
+    Role.Meter => "meter"
     Role.Separator => "separator"
     Role.ComboBox => "combobox"
     Role.SearchBox => "searchbox"
@@ -725,6 +730,14 @@ pub effect fn writeMutation(out: &mut Bytes, mutation: &Mutation) -> bool
         run writeCanvas(&mut out, list[i])
         i = i + 1
       }
+    }
+    Mutation.SetCanvasPixels { id, width, height, opaque, pixels } => {
+      run byte(&mut out, OP_CANVAS_PIXELS)
+      run word(&mut out, id)
+      run word(&mut out, width)
+      run word(&mut out, height)
+      run flag(&mut out, opaque)
+      run text(&mut out, pixels.asSlice())
     }
     Mutation.SetAnchor { id, target, options } => {
       run byte(&mut out, OP_ANCHOR)

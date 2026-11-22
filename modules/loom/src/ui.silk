@@ -20,6 +20,7 @@ import ui_protocol.css { px, number, Keyword, Declaration }
 import ui_protocol.options { AnchorOptions }
 import virtual_list { VirtualList, VirtualOptions, VirtualRow, VirtualSlot }
 import heap { Heap }
+pub import drawing { Drawing, Bitmap, CanvasContent }
 import aria { AriaField, AriaValues }
 import ui_protocol.aria { isNamedAttribute }
 import ui_protocol.mutation {
@@ -535,7 +536,8 @@ pub struct Arena {
   pub styles: List<StyleRecord>,
   pub bytes: List<u8>,
   pub grids: List<Grid>,
-  pub canvas: List<CanvasCommand>,
+  /// What each canvas node shows; a canvas's `Extra.canvas` is a span of one here.
+  pub canvas: List<CanvasContent>,
   pub lazies: List<LazyRecord>,
   /// The rare attributes of entries; entry `extra` of an entry is at `extra - 1`.
   pub extras: List<Extra>,
@@ -548,7 +550,7 @@ impl Arena {
       styles: List<StyleRecord>.make(),
       bytes: List<u8>.make(),
       grids: List<Grid>.make(),
-      canvas: List<CanvasCommand>.make(),
+      canvas: List<CanvasContent>.make(),
       lazies: List<LazyRecord>.make(),
       extras: List<Extra>.make(),
     }
@@ -631,11 +633,20 @@ impl Arena {
     return Slice.view(self.bytes.asSlice(), u32.toUsize(span.start), u32.toUsize(span.length))
   }
 
+  /// The commands a canvas's `span` draws: none for pixels.
   pub fn commands(self: &Self, span: Span) -> &[CanvasCommand] {
     if span.length == 0 {
-      return Slice.view(self.canvas.asSlice(), 0, 0)
+      return &[]
     }
-    return Slice.view(self.canvas.asSlice(), u32.toUsize(span.start), u32.toUsize(span.length))
+    return self.canvas.asSlice()[u32.toUsize(span.start)].commands()
+  }
+
+  /// What a canvas's `span` shows, or none.
+  pub fn content(self: &Self, span: Span) -> Option<&CanvasContent> {
+    if span.length == 0 {
+      return Option<&CanvasContent>.None
+    }
+    return Option<&CanvasContent>.Some { value: &self.canvas.asSlice()[u32.toUsize(span.start)] }
   }
 
   /// Makes this arena a copy of `other`.
@@ -664,7 +675,12 @@ impl Arena {
       r = r + 1
     }
     run self.bytes.appendSlice(other.bytes.asSlice())
-    run self.canvas.appendSlice(other.canvas.asSlice())
+    let contents = other.canvas.asSlice()
+    let mut c: usize = 0
+    while c < contents.length {
+      run self.canvas.append(contents[c].clone())
+      c = c + 1
+    }
     run self.lazies.appendSlice(other.lazies.asSlice())
     run self.extras.appendSlice(other.extras.asSlice())
   }
@@ -1872,21 +1888,56 @@ impl<M> Ui<M> {
     )
   }
 
-  /// A canvas node drawing `commands`.
+  /// A canvas node drawing `commands`, copied each render: for a drawing that changes with
+  /// every render. Keep a large or lasting one in a [`Drawing`] and show it with `drawing`.
   pub fn canvas(self: &mut Self, commands: &[CanvasCommand], body: fn(&mut Ui<M>) -> ()) -> () {
     self.node(
       NodeKind.Canvas,
       |ui| {
         if !ui.dispatching {
-          let start = usize.toU32(ui.arena.canvas.length())
-          ui.heap.alloc(ui.arena.canvas.appendSlice(commands))
-          let extra = ui.extraMut()
-          extra.hasCanvas = true
-          extra.canvas = Span { start: start, length: usize.toU32(commands.length) }
+          let drawing = ui.heap.alloc(Drawing.copy(commands))
+          ui.showContent(CanvasContent.Commands { drawing: move drawing })
         }
         body(&mut ui)
       },
     )
+  }
+
+  /// A canvas node drawing `drawing`, without a copy: a render that shows the same drawing as
+  /// the last costs nothing for it.
+  pub fn drawing(self: &mut Self, drawing: &Drawing, body: fn(&mut Ui<M>) -> ()) -> () {
+    self.node(
+      NodeKind.Canvas,
+      |ui| {
+        if !ui.dispatching {
+          ui.showContent(CanvasContent.Commands { drawing: drawing.clone() })
+        }
+        body(&mut ui)
+      },
+    )
+  }
+
+  /// A canvas node showing the pixels of `bitmap`, as `putImageData` fills a `<canvas>`: it
+  /// has the bitmap's size in pixels as its natural size. A render that shows the same bitmap
+  /// as the last costs nothing for it; another bitmap sends its pixels.
+  pub fn bitmap(self: &mut Self, bitmap: &Bitmap, body: fn(&mut Ui<M>) -> ()) -> () {
+    self.node(
+      NodeKind.Canvas,
+      |ui| {
+        if !ui.dispatching {
+          ui.showContent(CanvasContent.Pixels { bitmap: bitmap.clone() })
+        }
+        body(&mut ui)
+      },
+    )
+  }
+
+  fn showContent(self: &mut Self, content: CanvasContent) -> () {
+    let start = usize.toU32(self.arena.canvas.length())
+    self.heap.alloc(self.arena.canvas.append(move content))
+    let extra = self.extraMut()
+    extra.hasCanvas = true
+    extra.canvas = Span { start: start, length: 1 }
   }
 
   /// Makes the open canvas node show GPU surface `surface` instead of commands.
@@ -2308,15 +2359,12 @@ impl<M> Ui<M> {
         ),
       ),
     )
-    self.heap.alloc(
-      self.arena.canvas.appendSlice(
-        Slice.view(
-          self.previous.canvas.asSlice(),
-          u32.toUsize(record.canvasStart),
-          u32.toUsize(record.canvasEnd - record.canvasStart),
-        ),
-      ),
-    )
+    let mut d = record.canvasStart
+    while d < record.canvasEnd {
+      let content = self.previous.canvas.asSlice()[u32.toUsize(d)].clone()
+      self.heap.alloc(self.arena.canvas.append(move content))
+      d = d + 1
+    }
 
     // Lazy regions nested in this one move with it. They were recorded while its body ran,
     // so they are among the records just before it whose regions start inside it.
