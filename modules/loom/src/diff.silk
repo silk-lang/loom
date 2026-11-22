@@ -18,6 +18,7 @@ import ui_protocol.css { Declaration, Keyword, percent }
 import ui_protocol.grid { Grid }
 import silk.mem.box { Box }
 import ui { Arena, Entry, Extra, Span, NO_ENTRY, ROOT_ID }
+import drawing { CanvasContent }
 import aria { AriaField }
 import backend { Backend }
 import equal { sameCommand }
@@ -44,6 +45,7 @@ import silk.mem.arena { Arena as BumpArena, ArenaReset }
 import silk.core.effect { Effect }
 import silk.num.u8
 import silk.num.u32
+import silk.num.u64
 import silk.num.usize
 import silk.text.string { String }
 
@@ -75,6 +77,9 @@ pub struct DiffState {
   /// How many mutations of this render the backend took before its end (`Backend.mutateEarly`).
   /// The runtime sets it to 0 when a render starts.
   pub taken: usize,
+  /// Canvas commands compared one by one since the state was made: a drawing shown again by
+  /// the same handle is never compared.
+  pub comparedCommands: u64,
   /// A bump allocator for the text of one render's mutations, reset at the next render. A
   /// string there costs a pointer bump instead of a heap allocation, and dropping it a count.
   scratch: BumpArena<SystemAllocator>,
@@ -99,6 +104,7 @@ impl DiffState {
       previous: List<usize>.make(),
       transient: false,
       taken: 0,
+      comparedCommands: 0,
       scratch: BumpArena<SystemAllocator>.make(Allocator.systemAllocatorProvider()),
     }
   }
@@ -694,12 +700,7 @@ effect fn props(
       run out.append(Mutation.SetGrid { id: id, value: run Box<Grid>.make(Grid.make()) })
     }
     if ex.hasCanvas || px.hasCanvas {
-      let commands = next.commands(ex.canvas)
-      if !sameCommands(commands, old.commands(px.canvas)) || fresh {
-        let mut list = List<CanvasCommand>.make()
-        run list.appendSlice(commands)
-        run out.append(Mutation.SetCanvas { id: id, commands: move list })
-      }
+      run diffCanvas(next.content(ex.canvas), old.content(px.canvas), id, fresh, &mut state, &mut out)
     }
     if (!ex.surface.same(&px.surface)) || (fresh && !ex.surface.isNone()) {
       run out.append(
@@ -886,6 +887,79 @@ fn sameBytes(a: &[u8], b: &[u8]) -> bool {
     i = i + 1
   }
   return true
+}
+
+/// The mutations that take canvas `id` from showing `before` to showing `now`. The same
+/// handle as the last render's is unchanged without a look at what it holds.
+effect fn diffCanvas(
+  now: Option<&CanvasContent>,
+  before: Option<&CanvasContent>,
+  id: u32,
+  fresh: bool,
+  state: &mut DiffState,
+  out: &mut List<Mutation>,
+) -> ()
+  ! OutOfMemoryError
+  ? &mut Allocator {
+  let wasPixels = !fresh && match before {
+    Option<&CanvasContent>.Some { value } => match &value.* {
+      CanvasContent.Pixels { .. } => true
+      _ => false
+    }
+    _ => false
+  }
+  let mut oldCommands = noCommands()
+  if !fresh {
+    if let Option<&CanvasContent>.Some { value } = before { oldCommands = value.commands() }
+  }
+  if let Option<&CanvasContent>.Some { value } = now {
+    if let CanvasContent.Pixels { bitmap } = &value.* {
+      let mut same = false
+      if wasPixels {
+        if let Option<&CanvasContent>.Some { value: prior } = before {
+          if let CanvasContent.Pixels { bitmap: shown } = &prior.* { same = bitmap.same(&shown) }
+        }
+      }
+      if !same {
+        let mut bytes = List<u8>.make()
+        run bytes.appendSlice(bitmap.bytes())
+        run out.append(
+          Mutation.SetCanvasPixels { id: id, width: bitmap.width(), height: bitmap.height(), opaque: bitmap.opaque(), pixels: move bytes },
+        )
+      }
+      if oldCommands.length != 0 {
+        run out.append(Mutation.SetCanvas { id: id, commands: List<CanvasCommand>.make() })
+      }
+      return ()
+    }
+  }
+  if wasPixels {
+    run out.append(Mutation.SetCanvasPixels { id: id, width: 0, height: 0, opaque: false, pixels: List<u8>.make() })
+  }
+  let mut commands = noCommands()
+  if let Option<&CanvasContent>.Some { value } = now { commands = value.commands() }
+  if !fresh {
+    if let Option<&CanvasContent>.Some { value } = now {
+      if let CanvasContent.Commands { drawing } = &value.* {
+        if let Option<&CanvasContent>.Some { value: prior } = before {
+          if let CanvasContent.Commands { drawing: shown } = &prior.* {
+            if drawing.same(&shown) { return () }
+          }
+        }
+      }
+    }
+    state.comparedCommands = state.comparedCommands + usize.toU64(commands.length)
+    if sameCommands(commands, oldCommands) { return () }
+  } else if commands.length == 0 {
+    return ()
+  }
+  let mut list = List<CanvasCommand>.make()
+  run list.appendSlice(commands)
+  run out.append(Mutation.SetCanvas { id: id, commands: move list })
+}
+
+fn noCommands() -> &'static [CanvasCommand] {
+  return &[]
 }
 
 fn sameCommands(a: &[CanvasCommand], b: &[CanvasCommand]) -> bool {

@@ -12,6 +12,7 @@
 import heap { Heap }
 import program { Submodel }
 import ui { Ui, Span, PassSizes, LazyHints }
+pub import drawing { Drawing, Bitmap, CanvasContent }
 pub import ui { Surface }
 // What a view names next to the builder.
 pub import ui { Reply, DefaultAction }
@@ -165,7 +166,7 @@ struct Tree {
   attrs: List<u32>,
   styles: List<Declaration>,
   grids: List<Grid>,
-  canvas: List<CanvasCommand>,
+  canvas: List<CanvasContent>,
   bytes: List<u8>,
   virtuals: List<VirtualSpec>,
   rows: List<VirtualSlot>,
@@ -209,7 +210,7 @@ impl Tree {
       attrs: List<u32>.make(),
       styles: List<Declaration>.make(),
       grids: List<Grid>.make(),
-      canvas: List<CanvasCommand>.make(),
+      canvas: List<CanvasContent>.make(),
       bytes: List<u8>.make(),
       virtuals: List<VirtualSpec>.make(),
       rows: List<VirtualSlot>.make(),
@@ -223,6 +224,12 @@ impl Tree {
     let index = usize.toU32(self.ops.length())
     self.heap.alloc(self.ops.append(op))
     return Attr { index: index }
+  }
+
+  fn canvasOf(self: &mut Self, content: CanvasContent, attributes: &[Attr]) -> Node {
+    let span = Span { start: usize.toU32(self.canvas.length()), length: 1 }
+    self.heap.alloc(self.canvas.append(move content))
+    return self.add(Shape.Canvas, span, &[], attributes, &[])
   }
 
   fn store(self: &mut Self, bytes: &[u8]) -> Span {
@@ -523,16 +530,40 @@ impl<M> Document<M> {
     return self.node(Shape.Icon, &[self.op(Op.Source { text: self.store(url) })], attributes, &[])
   }
 
-  /// A canvas drawing `commands`, in CSS pixels from its top left.
+  /// A canvas drawing `commands`, in CSS pixels from its top left, copied each render: for a
+  /// drawing that changes with every render. Keep a large or lasting one in a [`Drawing`] and
+  /// show it with `h.drawing`.
   pub fn canvas(self: &Self, commands: &[CanvasCommand], attributes: &[Attr]) -> Node {
     let mut anchor: u8 = 0
     let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
-    let mut span = Span.empty()
-    if !tree.dispatching {
-      span = Span { start: usize.toU32(tree.canvas.length()), length: usize.toU32(commands.length) }
-      tree.heap.alloc(tree.canvas.appendSlice(commands))
+    if tree.dispatching {
+      return tree.add(Shape.Canvas, Span.empty(), &[], attributes, &[])
     }
-    return tree.add(Shape.Canvas, span, &[], attributes, &[])
+    let drawing = tree.heap.alloc(Drawing.copy(commands))
+    return tree.canvasOf(CanvasContent.Commands { drawing: move drawing }, attributes)
+  }
+
+  /// A canvas drawing `drawing`, without a copy: a render that shows the same drawing as the
+  /// last costs nothing for it, however many commands it has.
+  pub fn drawing(self: &Self, drawing: &Drawing, attributes: &[Attr]) -> Node {
+    let mut anchor: u8 = 0
+    let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
+    if tree.dispatching {
+      return tree.add(Shape.Canvas, Span.empty(), &[], attributes, &[])
+    }
+    return tree.canvasOf(CanvasContent.Commands { drawing: drawing.clone() }, attributes)
+  }
+
+  /// A canvas showing the pixels of `bitmap`, as `putImageData` fills a `<canvas>`. Without a
+  /// size it has the bitmap's size in pixels. A render that shows the same bitmap as the last
+  /// costs nothing for it; another bitmap sends its pixels.
+  pub fn bitmap(self: &Self, bitmap: &Bitmap, attributes: &[Attr]) -> Node {
+    let mut anchor: u8 = 0
+    let tree = unsafe Pointer.borrowMut(&mut anchor, self.tree)
+    if tree.dispatching {
+      return tree.add(Shape.Canvas, Span.empty(), &[], attributes, &[])
+    }
+    return tree.canvasOf(CanvasContent.Pixels { bitmap: bitmap.clone() }, attributes)
   }
 
   /// A canvas showing GPU surface `surface`: what the application draws with WebGPU on a
@@ -1584,14 +1615,14 @@ fn place<M>(ui: &mut Ui<M>, tree: &Tree, slots: *mut Slots<M>, index: u32) -> ()
   } else if record.shape == Shape.Icon {
     ui.node(NodeKind.Icon, |ui| fill<M>(&mut ui, tree, slots, record))
   } else if record.shape == Shape.Canvas {
-    ui.canvas(
-      Slice.view(
-        tree.canvas.asSlice(),
-        u32.toUsize(record.text.start),
-        u32.toUsize(record.text.length),
-      ),
-      |ui| fill<M>(&mut ui, tree, slots, record),
-    )
+    if record.text.length == 0 {
+      ui.canvas(&[], |ui| fill<M>(&mut ui, tree, slots, record))
+    } else {
+      match &tree.canvas.asSlice()[u32.toUsize(record.text.start)] {
+        CanvasContent.Commands { drawing } => ui.drawing(&drawing, |ui| fill<M>(&mut ui, tree, slots, record))
+        CanvasContent.Pixels { bitmap } => ui.bitmap(&bitmap, |ui| fill<M>(&mut ui, tree, slots, record))
+      }
+    }
   } else if record.shape == Shape.Surface {
     ui.node(NodeKind.Canvas, |ui| fill<M>(&mut ui, tree, slots, record))
   } else if record.shape == Shape.Text {

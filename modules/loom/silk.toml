@@ -3,7 +3,7 @@ name = "loom"
 description = "Loom, an Elm-style UI framework over ui-protocol: model, messages, view, update, commands"
 version = "0.1.0"
 kind = "library"
-exports = ["lib", "aria", "equal", "font", "heap", "ui", "document", "css", "keys", "diff", "app", "backend", "program", "shell", "show", "journal", "keep", "runtime", "seq", "fibers", "virtual_list", "windows"]
+exports = ["lib", "aria", "equal", "drawing", "font", "heap", "ui", "document", "css", "keys", "diff", "app", "backend", "program", "shell", "show", "journal", "keep", "runtime", "seq", "fibers", "virtual_list", "windows"]
 
 [dependencies]
-ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "46f99ab780c7c55d84925bc7fc01c0da86ab9500", path = "modules/protocol", package = "ui-protocol" }
+ui_protocol = { git = "https://github.com/silk-lang/silkui.git", rev = "b18a97eee25b6d3b8c1df69d1fe6e9777625cd92", path = "modules/protocol", package = "ui-protocol" }

@@ -946,6 +946,16 @@ class Page {
           this.paint(id);
           break;
         }
+        case 42: {
+          const id = r.u32(), width = r.u32(), height = r.u32();
+          r.u8();
+          const length = r.u32();
+          const bytes = r.bytes.slice(r.at, r.at + length);
+          r.at += length;
+          this.meta.get(id).pixels = width && height ? { width, height, bytes } : null;
+          this.paint(id);
+          break;
+        }
         case 22: {
           const id = r.u32();
           this.meta.get(id).anchor = {
@@ -1276,6 +1286,17 @@ class Page {
   // Draws a canvas node's commands, in CSS pixels on a bitmap as sharp as the display.
   paint(id) {
     const node = this.nodes.get(id);
+    const pixels = this.meta.get(id)?.pixels;
+    if (pixels && node?.getContext) {
+      // As putImageData: the canvas is the bitmap's size, its natural size in CSS pixels.
+      if (node.width !== pixels.width) node.width = pixels.width;
+      if (node.height !== pixels.height) node.height = pixels.height;
+      // Missing bytes are transparent, extra ones unused, as `Mutation.SetCanvasPixels` says.
+      const data = new Uint8ClampedArray(pixels.width * pixels.height * 4);
+      data.set(pixels.bytes.subarray(0, data.length));
+      node.getContext("2d").putImageData(new ImageData(data, pixels.width, pixels.height), 0, 0);
+      return;
+    }
     const commands = this.meta.get(id)?.canvas;
     if (!node || !commands || !node.getContext) return;
     const scale = window.devicePixelRatio || 1;
