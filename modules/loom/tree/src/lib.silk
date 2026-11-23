@@ -8,6 +8,7 @@ import ui_tree.engine { UiTree, TreeError }
 import ui_tree.node { FrameInput }
 import silk.core.option { Option }
 import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.trace { Trace as Prof }
 
 /// Feeds one input to the tree the way a browser does: the handlers of the input's own record
 /// run first, and the tree's default action (focus, scrolling, what a key does) runs only if
@@ -71,14 +72,19 @@ pub effect fn frameRoot<A: App<M, C>, M, C: Perform<M, E, R>, E, ? R>(
 ) -> ()
   ! E | TreeError | OutOfMemoryError
   ? R | &mut Allocator {
+  let _span = Prof.span("loom.frame")
   let mut pass: usize = 0
   while pass < 8 {
     run tree.frameRoot(root, input)
-    drop run pump(&mut runtime, &mut tree)
-    if !tree.needsFrameOf(root) {
+    // Only repeat within this frame when a layout handler or virtual-list request changed the
+    // tree; ongoing animations and transitions keep `needsFrameOf` true for the *next* vsync.
+    if !(run pump(&mut runtime, &mut tree)) || !tree.needsFrameOf(root) {
+      let passes = pass + 1
+      Prof.set("passes", &passes)
       return ()
     }
     pass = pass + 1
   }
+  Prof.set("passes", &pass)
 }
 

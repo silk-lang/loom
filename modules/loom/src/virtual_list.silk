@@ -1,5 +1,5 @@
 //! View bookkeeping for virtual items. Geometry and virtualization policy belong to ui-tree.
-pub import ui_protocol.options { VirtualOptions }
+pub import ui_protocol.options { VirtualItem, VirtualOptions }
 import heap { Heap }
 import silk.collections.list { List }
 import silk.core.ownership { Copy }
@@ -42,6 +42,12 @@ pub struct VirtualList {
   pub indices: List<usize>,
   /// Whether this render visited the list.
   pub seen: bool,
+  /// Last backend port id, count, options and bound items emitted so unchanged lists send no
+  /// redundant `SetVirtualList` / `SetVirtualItems` mutations.
+  pub sentPort: u32,
+  pub sentCount: usize,
+  pub sentOptions: VirtualOptions,
+  pub sentItems: List<VirtualItem>,
 }
 
 impl VirtualList {
@@ -55,6 +61,10 @@ impl VirtualList {
       port: 0,
       indices: List<usize>.make(),
       seen: true,
+      sentPort: 0,
+      sentCount: 0,
+      sentOptions: options,
+      sentItems: List<VirtualItem>.make(),
     }
   }
 

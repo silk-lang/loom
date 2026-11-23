@@ -50,6 +50,7 @@ import silk.core.option { Option }
 import silk.num.u32
 import silk.num.f64
 import silk.mem.allocator { Allocator, OutOfMemoryError }
+import silk.trace { Trace as Prof }
 
 /// Custom drawing integrated with the standard window, input, inspection and GPU lifecycle.
 /// `frame` runs after layout and before uploads. Its resources use the tree's atlas; `scene`
@@ -408,6 +409,8 @@ effect fn work<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, 
   if !client.due && time - client.since < FRAME_PATIENCE {
     return ()
   }
+  let _span = Prof.span("loom.window.work")
+  Prof.set("commands", &left)
   let all = !WindowContent<A, M, C>.runsCommands(&client.content.*)
   while left != 0 {
     let held = if all {
@@ -513,6 +516,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> bool
     ! WindowError | TreeError | OutOfMemoryError
     ? &mut Allocator {
+    let _span = Prof.span("loom.window.poll")
     let styled = run self.stylesheetUpdates.poll(&mut self.stylesheets, &mut tree, time)
     run self.loader.watch(time)
     let loaded = run self.load(&mut tree)
@@ -593,6 +597,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   effect fn pump(self: &mut Self, state: &mut Runtime<A, M, C>, tree: &mut UiTree<'_>) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.pump")
     run WindowContent<A, M, C>.intercept(&mut self.content.*, &mut state, &mut tree)
     drop run pump(&mut state, &mut tree)
     // These records come after their input's default ran (a click, a change): there is
@@ -605,6 +610,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   effect fn decide(self: &mut Self, state: &mut Runtime<A, M, C>, tree: &mut UiTree<'_>) -> bool
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.decide")
     run WindowContent<A, M, C>.intercept(&mut self.content.*, &mut state, &mut tree)
     drop run pump(&mut state, &mut tree)
     run loadNow(&mut self.loader, &mut state, &mut tree)
@@ -621,6 +627,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.tick")
     run tick(&mut state, &mut tree, time, animation)
     run loadNow(&mut self.loader, &mut state, &mut tree)
     if animation {
@@ -640,6 +647,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.resize")
     run resize(&mut state, &mut tree, width, height)
     run loadNow(&mut self.loader, &mut state, &mut tree)
   }
@@ -652,6 +660,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.layout")
     let root = tree.current
     drop run self.stylesheets.serve(&mut tree, root)
     run frame(&mut state, &mut tree, input)
@@ -667,6 +676,7 @@ impl<'a, A: App<M, C>, M, C: Perform<M, E, R>, H: WindowContent<A, M, C>, E, ? R
   ) -> ()
     ! E | TreeError | OutOfMemoryError
     ? R | &mut Allocator {
+    let _span = Prof.span("loom.window.layoutRoot")
     drop run self.stylesheets.serve(&mut tree, root)
     run frameRoot(&mut state, &mut tree, root, input)
     run loadNow(&mut self.loader, &mut state, &mut tree)

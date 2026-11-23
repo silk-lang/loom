@@ -37,7 +37,7 @@ import ui_protocol.mutation {
 }
 import ui_protocol.record { Event, EventKind }
 import ui_protocol.input { Input, MOD_ALT, MOD_CONTROL, MOD_META, MOD_SHIFT }
-import ui_protocol.options { VirtualItem, RootOptions }
+import ui_protocol.options { VirtualItem, VirtualOptions, RootOptions }
 import ui_protocol.root { RootEvent, RootEventKind }
 import backend { Backend, Measured, TreeError }
 import silk.collections.list { List }
@@ -52,6 +52,26 @@ import silk.mem.allocator { Allocator, OutOfMemoryError }
 import silk.num.u32
 import silk.num.usize
 import silk.text.string { String, InvalidUtf8 }
+import silk.trace { Trace as Prof }
+
+fn sameVirtualOptions(a: VirtualOptions, b: VirtualOptions) -> bool {
+  return a.estimatedHeight == b.estimatedHeight && a.overscan == b.overscan
+    && a.gap == b.gap && a.revision == b.revision
+}
+
+fn sameVirtualItems(a: &[VirtualItem], b: &[VirtualItem]) -> bool {
+  if a.length != b.length {
+    return false
+  }
+  let mut i: usize = 0
+  while i < a.length {
+    if a[i].index != b[i].index || a[i].id != b[i].id {
+      return false
+    }
+    i = i + 1
+  }
+  return true
+}
 
 /// A running `Every` subscription.
 struct Timer {
@@ -636,6 +656,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
   pub effect fn render<B: Backend>(self: &mut Self, tree: &mut B) -> ()
     ! TreeError | OutOfMemoryError
     ? &mut Allocator {
+    let _renderSpan = Prof.span("loom.render")
     run self.collectSubscriptions()
     self.batch.clear()
     self.diffState.taken = 0
@@ -648,11 +669,16 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     self.stats.mutations = self.batch.length() + self.diffState.taken
     self.stats.nodes = nodes
     self.stats.reused = reused
+    Prof.set("mutations", &self.stats.mutations)
+    Prof.set("nodes", &nodes)
+    Prof.set("reused", &reused)
 
     // Transfer the batch in constant time. Removing its first mutation repeatedly
     // shifts the remaining array and makes mounting a large view quadratic.
     let batch = Intrinsic.replace(self.batch, List<Mutation>.make())
+    let _mutateSpan = Prof.span("loom.mutate")
     run Backend.mutate(&mut tree, move batch)
+    drop _mutateSpan
   }
 
   /// Runs the view in `self.ui` (the first window's, or the one `enter` swapped in), whose
@@ -662,7 +688,9 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     ? &mut Allocator {
     run self.readAnchorsIn(&mut tree, root)
     run self.ui.beginRender()
+    let _viewSpan = Prof.span("loom.view")
     self.runView()
+    drop _viewSpan
     self.ui.endRender()
     if self.keyBindings {
       // Key records reach the root wherever focus is, but only when a node on the path
@@ -678,6 +706,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       run self.sendFonts()
     }
     run self.sendLoads()
+    let _diffSpan = Prof.span("loom.diff")
     run diffFrom(
       &mut self.ui.arena,
       &self.ui.previous,
@@ -686,6 +715,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
       &mut tree,
       self.ui.rootId,
     )
+    drop _diffSpan
     // Anchored placement is rare: skip both passes when no entry, new or old, has it.
     let mut placing = false
     let mut scan: usize = if self.ui.hasMarks() {
@@ -749,19 +779,36 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
     self.ui.removedVirtualPorts.clear()
     let mut v: usize = 0
     while v < self.ui.virtualLists.length() {
-      let list = &self.ui.virtualLists.asSlice()[v]
-      let id = self.ui.arena.entry(list.port).id
-      run self.batch.append(
-        Mutation.SetVirtualList { id: id, count: list.count, options: list.options },
-      )
+      let portEntry = self.ui.virtualLists.asSlice()[v].port
+      let id = self.ui.arena.entry(portEntry).id
+      let count = self.ui.virtualLists.asSlice()[v].count
+      let options = self.ui.virtualLists.asSlice()[v].options
       let mut items = List<VirtualItem>.make()
+      let rowCount = self.ui.virtualLists.asSlice()[v].rows.length()
       let mut r: usize = 0
-      while r < list.rows.length() {
-        let row = list.rows.get(r)
+      while r < rowCount {
+        let row = self.ui.virtualLists.asSlice()[v].rows.get(r)
         run items.append(VirtualItem { index: row.index, id: self.ui.arena.entry(row.entry).id })
         r = r + 1
       }
-      run self.batch.append(Mutation.SetVirtualItems { id: id, items: move items })
+      let list = &mut self.ui.virtualLists.asMutSlice()[v]
+      let configChanged = list.sentPort != id || list.sentCount != count
+        || !sameVirtualOptions(list.sentOptions, options)
+      let itemsChanged = list.sentPort != id
+        || !sameVirtualItems(list.sentItems.asSlice(), items.asSlice())
+      if configChanged {
+        run self.batch.append(
+          Mutation.SetVirtualList { id: id, count: count, options: options },
+        )
+        list.sentCount = count
+        list.sentOptions = options
+      }
+      if itemsChanged || configChanged {
+        list.sentItems.clear()
+        run list.sentItems.appendSlice(items.asSlice())
+        run self.batch.append(Mutation.SetVirtualItems { id: id, items: move items })
+      }
+      list.sentPort = id
       v = v + 1
     }
   }
@@ -1440,6 +1487,7 @@ impl<A: App<M, C>, M, C> Runtime<A, M, C> {
   pub effect fn dispatch(self: &mut Self, record: Event) -> ()
     ! OutOfMemoryError
     ? &mut Allocator {
+    let _span = Prof.span("loom.dispatch")
     self.path.clear()
     let first = if record.path.length() == 0 {
       0
@@ -1747,6 +1795,7 @@ pub effect fn pump<A: App<M, C>, M, C: Perform<M, E, R>, E, B: Backend, ? R>(
 ) -> bool
   ! E | TreeError | OutOfMemoryError
   ? R | &mut Allocator {
+  let _span = Prof.span("loom.pump")
   runtime.records.clear()
   run Backend.events(&mut tree, &mut runtime.records)
 

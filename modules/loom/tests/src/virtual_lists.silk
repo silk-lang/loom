@@ -252,6 +252,51 @@ effect fn documentBody() -> ()
     app.ui.virtualLists.asSlice()[0].indices.get(0) == 3,
     "at its new index, found by its key",
   )
+
+  // An unchanged render emits zero mutations for an already-bound virtual list.
+  run app.render(&mut tree)
+  run Testing.expect(app.stats.mutations == 0, "unchanged virtual list sends no redundant mutations")
+}
+
+struct TransitionBox {
+  dim: bool,
+}
+
+impl App<Message, NoCommand> for TransitionBox {
+  fn update(self: &mut Self, message: Message, cx: &mut Context<NoCommand>) -> () {
+    drop message
+  }
+
+  fn view(self: &Self, ui: &mut Ui<Message>) -> () {
+    let opacity: f32 = if self.dim { 0.2 } else { 1.0 }
+    ui.box(
+      |ui| {
+        ui.width(px(100.0))
+        ui.height(px(100.0))
+        ui.style(&[css.opacity(opacity)])
+        ui.transition("opacity 0.5s linear")
+      },
+    )
+  }
+}
+
+effect fn activeTransitionFrameBody() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError
+  ? &mut Allocator {
+  let fonts = run fixtures.fonts()
+  let mut tree = run UiTree.make(&fonts)
+  let mut app = Runtime<TransitionBox, Message, NoCommand>.make(TransitionBox { dim: false })
+  run app.start(&mut tree, 0.0)
+  run frame(&mut app, &mut tree, FrameInput { width: 200.0, height: 200.0, scale: 1.0, time: 0.0 })
+  app.model.dim = true
+  run app.render(&mut tree)
+  let before = tree.frameNumber
+  run frame(&mut app, &mut tree, FrameInput { width: 200.0, height: 200.0, scale: 1.0, time: 0.05 })
+  run Testing.expect(tree.needsFrame(), "mid-transition still requests the next frame")
+  run Testing.expect(
+    tree.frameNumber == before + 1,
+    "active transition runs one layout+paint pass per frame, not eight",
+  )
 }
 
 /// A page's report for one list (see `loom_dom.virtual`), written where the page writes it.
@@ -348,4 +393,10 @@ test effect fn measuredList() -> ()
   ! AssertionError<'static> | TreeError | OutOfMemoryError {
   let mut allocator = Allocator.systemAllocatorProvider()
   run body() |> Effect.provideMut<Allocator>(&mut allocator)
+}
+
+test effect fn activeTransitionRunsOnePassPerFrame() -> ()
+  ! AssertionError<'static> | TreeError | OutOfMemoryError {
+  let mut allocator = Allocator.systemAllocatorProvider()
+  run activeTransitionFrameBody() |> Effect.provideMut<Allocator>(&mut allocator)
 }

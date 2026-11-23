@@ -2,7 +2,7 @@
 name = "ui-ghostty"
 description = "A terminal component for loom programs, rendered on the UI tree from libghostty-vt snapshots: cells, cursor, selection, scrollback, keys, paste, mouse reporting"
 version = "0.1.0"
-silk-version = "0.1.0-dev.98+dc4d2328ed3a"
+silk-version = "0.1.0-dev.100+8f42b4e7342a"
 kind = "library"
 exports = ["view", "speech"]
 

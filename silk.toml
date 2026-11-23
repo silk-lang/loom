@@ -32,4 +32,4 @@ members = [
   "modules/silkui/web/canvas",
   "modules/silkui/web/dom",
 ]
-silk-version = "0.1.0-dev.98"
+silk-version = "0.1.0-dev.100+8f42b4e7342a"

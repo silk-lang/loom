@@ -36,7 +36,7 @@ runs:
     - if: runner.os != 'Windows'
       shell: bash
       env:
-        SILK_RELEASE: v0.1.0-dev.98+dc4d2328ed3a
+        SILK_RELEASE: v0.1.0-dev.100+8f42b4e7342a
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         curl --fail --location https://raw.githubusercontent.com/silk-lang/silk/c9d19330761ba982a5a9a63af08375b66ff0591f/install.sh --output "$RUNNER_TEMP/install-silk.sh"
@@ -45,7 +45,7 @@ runs:
     - if: runner.os == 'Windows'
       shell: pwsh
       env:
-        SILK_RELEASE: v0.1.0-dev.98+dc4d2328ed3a
+        SILK_RELEASE: v0.1.0-dev.100+8f42b4e7342a
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         Invoke-WebRequest https://raw.githubusercontent.com/silk-lang/silk/c9d19330761ba982a5a9a63af08375b66ff0591f/install.ps1 -OutFile "$env:RUNNER_TEMP/install-silk.ps1"
