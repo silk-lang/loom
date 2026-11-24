@@ -17,4 +17,4 @@ ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "d3
 
 window = { git = "https://github.com/silk-lang/lib-native.git", rev = "df99cfdfa30a510afff635e954a415a66520e926", path = "modules/platform/window", package = "platform-window" }
 
-font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "8429196de1f54d47c946429ad0784853c14709d5", path = "modules/collection", package = "font-collection" }
+font_collection = { git = "https://github.com/silk-lang/lib-fonts.git", rev = "6ac5cf92923c3d2e3993389ec563775b0d3f741c", path = "modules/collection", package = "font-collection" }
