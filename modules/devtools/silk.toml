@@ -12,4 +12,4 @@ ui_tree = { git = "https://github.com/silk-lang/silkui.git", rev = "d3fcc84cfb5e
 ui_inspect = { git = "https://github.com/silk-lang/silkui.git", rev = "d3fcc84cfb5ee4f547bcbb0259afe3f5c7970c0f", path = "modules/inspect", package = "ui-inspect" }
 ui_inspect_server = { git = "https://github.com/silk-lang/silkui.git", rev = "d3fcc84cfb5ee4f547bcbb0259afe3f5c7970c0f", path = "modules/inspect/server", package = "ui-inspect-server" }
 ui_tree_window = { git = "https://github.com/silk-lang/silkui.git", rev = "d3fcc84cfb5ee4f547bcbb0259afe3f5c7970c0f", path = "modules/tree/window", package = "ui-tree-window" }
-properties = { git = "https://github.com/silk-lang/lib-css.git", rev = "6cb4084cf79e2bbd398a2e2dcbc91b4a6b43a61d", path = "modules/properties", package = "css-properties" }
+properties = { git = "https://github.com/silk-lang/lib-css.git", rev = "5d2b1e83b109f386c05b137da85ea01865776174", path = "modules/properties", package = "css-properties" }
